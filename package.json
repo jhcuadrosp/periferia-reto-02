@@ -1,0 +1,28 @@
+{
+  "name": "periferia-reto-02",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "bun check",
+    "test": "bun test",
+    "diagnostico": "bun run ./diagnostico.ts",
+    "extraccion": "bun run ./extraccion.ts",
+    "validacion": "bun run ./validacion.ts",
+    "registro": "bun run ./registro.ts",
+    "revision": "bun run ./revision.ts",
+    "herramientas": "bun run ./herramientas.ts",
+    "demo": "bun run ./demo.ts",
+    "agente:mock": "bun run ./agente-mock.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "csv-parse": "^7.0.3",
+    "zod": "^4.6.7"
+  }
+}

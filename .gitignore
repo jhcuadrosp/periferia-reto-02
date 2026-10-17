@@ -1,0 +1,65 @@
+### IntelliJ IDEA ###
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+.kotlin
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+# Dependencias
+node_modules/
+
+# Variables de entorno y credenciales
+.env
+.env.*
+!.env.example
+
+# Compilación y cobertura
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Cachés locales
+.cache/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Instrucciones locales de Codex
+AGENTS.md
+**/AGENTS.md
+
+# Archivos temporales
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Metadatos locales de Windows
+Thumbs.db
+Desktop.ini
