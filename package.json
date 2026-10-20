@@ -13,7 +13,8 @@
     "revision": "bun run ./revision.ts",
     "herramientas": "bun run ./herramientas.ts",
     "demo": "bun run ./demo.ts",
-    "agente:mock": "bun run ./agente-mock.ts"
+    "agente:mock": "bun run ./agente-mock.ts",
+    "agente:real": "bun run ./agente-real.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -22,6 +23,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@google/genai": "^2.30.0",
     "csv-parse": "^7.0.3",
     "zod": "^4.6.7"
   }

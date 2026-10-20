@@ -3,14 +3,18 @@
 Proyecto TypeScript con Bun para construir progresivamente una solución de
 registro de contratos. Incluye persistencia local y confirmación humana controlada
 (Fase 5.2), herramientas deterministas y alertas (Fase 6.1), y demo integral
-sin LLM (Fase 6.2), y motor conversacional con proveedor simulado (Fase 7.1).
-Todavía no integra un proveedor LLM real ni frontend.
+sin LLM (Fase 6.2), motor conversacional con proveedor simulado (Fase 7.1)
+y adaptador Google Gemini con consola provisional (Fase 7.2).
+Incluye estabilización del transporte por referencias y métricas (Fase 7.3).
+El control adicional de revisiones distingue pasos omitidos de tareas terminadas.
+Todavía no incluye frontend ni despliegue.
 
 ## Requisitos e instalación
 
 - Bun 1.4.3, versión verificada en este proyecto.
 - TypeScript 7.0.2 y tipos de Bun existentes.
 - Zod como dependencia de ejecución para esquemas y validaciones.
+- SDK oficial `@google/genai` 2.30.0 para Gemini; solo se utiliza al elegir el proveedor real.
 - csv-parse para leer CSV con comillas, campos vacíos y delimitadores sin
   mantener un parser propio. Su API síncrona basta para los archivos pequeños
   del reto; no hace falta introducir streams ni procesamiento por lotes.
@@ -41,6 +45,7 @@ bun run revision
 bun run herramientas
 bun run demo
 bun run agente:mock
+bun run agente:real
 ```
 
 `bun run test` también ejecuta las pruebas. El chequeo de tipos usa `bun check`
@@ -48,6 +53,42 @@ y la configuración existente de `tsconfig.json`, sin emitir archivos compilados
 
 `bun run demo` ejecuta los seis casos dos veces en un proyecto temporal nuevo,
 con reloj fijo y aserciones. No utiliza claves ni modifica el out/ operativo.
+
+### Qué comando usar
+
+| Comando | Qué comprueba | ¿LLM real / API Key? | Interacción |
+|---|---|---|---|
+| `bun run demo` | Los seis casos, reglas, persistencia, idempotencia y alertas mediante herramientas directas. | No / no. | Ejecución automática; no pasa por el motor conversacional. |
+| `bun run agente:mock` | El ciclo del agente, herramientas y bloqueo de revisión con un proveedor simulado. | No / no. | Conversación automática de guion fijo; no recibe preguntas libres. |
+| `bun run agente:real` | Interpretación de lenguaje natural, function calling y continuidad con Google Gemini. | Sí / sí. | Consola interactiva; escribir consultas y terminar con `salir` o `exit`. |
+
+Los tres comandos utilizan proyectos temporales propios con copias de fixtures,
+sin modificar los originales ni out/ operativo. Que demo o mock funcionen no
+demuestra conexión con Gemini: esa comprobación requiere agente:real.
+Los nombres de los comandos se escriben con **bun**, no con bum.
+
+### Para qué sirven .env.example y .env
+
+`.env.example` es una plantilla versionada para quien clone o ejecute el proyecto:
+enumera las variables necesarias y sus valores de ejemplo, sin una clave real.
+El programa no la carga automáticamente como configuración. Para usar Gemini,
+se copia una vez a `.env` y se completa `GEMINI_API_KEY` localmente. Bun carga
+`.env` al iniciar; config.ts valida las variables cuando arranca agente:real.
+También pueden suministrarse directamente como variables del entorno del proceso.
+
+`.env` contiene la configuración local y queda excluido de Git. No se debe
+sobrescribir uno existente ni colocar credenciales en `.env.example`.
+Después de cambiar los límites o la clave, reiniciar la consola para aplicarlos.
+
+`bun run agente:mock` selecciona explícitamente `createMockProvider` desde
+agente-mock.ts; no consulta `AGENT_PROVIDER` ni llama a loadGeminiConfig.
+Por eso funciona sin crear `.env` y sin configurar una API Key, aunque la
+plantilla diga `AGENT_PROVIDER=gemini`. Bun puede cargar un `.env` existente,
+pero el mock no utiliza esas variables para conectarse a un proveedor.
+Sus respuestas y solicitudes de herramientas están programadas; el motor,
+las herramientas deterministas y la auditoría sí se ejecutan en la copia temporal.
+El guion muestra saludo, consulta del buzón, revisión de msg-006 y bloqueo
+del intento «confirmo». No genera tokens ni solicitudes a Gemini.
 
 ## Estructura inicial
 
@@ -99,12 +140,26 @@ con reloj fijo y aserciones. No utiliza claves ni modifica el out/ operativo.
 - `src/agent/runner.ts`: ciclo conversacional, límites y coordinación de sesiones.
 - `src/agent/human-review.ts`: comandos externos de revisión y decisión, separados del proveedor.
 - `agente-mock.ts` y `tests/agent.test.ts`: muestra aislada y pruebas deterministas del motor.
+- `src/agent/config.ts`: variables de entorno y límites validados con Zod.
+- `src/agent/gemini-provider.ts`: solicitud al SDK, interpretación de respuestas y métricas seguras.
+- `src/agent/gemini-history.ts`: roles, correspondencia de llamadas y conservación de partes del SDK.
+- `src/agent/gemini-schema.ts`: declaraciones de las cinco herramientas desde sus esquemas existentes.
+- `src/agent/tool-references.ts`: transporte compacto y recuperación de originales por referencia de sesión.
+- `src/agent/context-window.ts`: cuatro turnos recientes completos para el contexto de Gemini.
+- `src/agent/task.ts`: objetivo de revisión del turno, evidencia de validación y pendientes verificables.
+- `src/agent/provider-error.ts`: errores públicos controlados, sin mensajes crudos de la API.
+- `src/agent/tool-summary.ts`: presentación de hechos devueltos por herramientas, sin reglas nuevas.
+- `agente-real.ts`: consola Gemini con almacenamiento temporal y métricas por turno.
+- `tests/gemini-provider.test.ts`: API simulada y SDK con fetch sustituido; ninguna inferencia real.
+- `tests/agent-optimization.test.ts`: referencias, cambios de fuentes, consultas finales, métricas y HITL sin LLM.
+- `tests/task-completion.test.ts`: cierres prematuros, corrección acotada, objetivos por mensaje y estado incomplete.
+- `.env.example`: configuración de ejemplo sin credenciales.
 - `fixtures/reto-02/`: datos originales de solo lectura.
 - `PRD.md`: requisitos originales, sin modificaciones.
 - `out/`: resultados generados en ejecución y excluidos de Git.
 
 Las carpetas vacías de `src/` incluyen `.gitkeep` para conservarlas en Git.
-No se necesitan claves ni variables de entorno para esta fase.
+Solo `agente:real` requiere una clave local; las pruebas, demo y mock siguen sin necesitarla.
 
 ## Lectura y calidad de datos
 
@@ -907,8 +962,9 @@ respaldo verificable de los hechos contractuales, también en preguntas de segui
 | Tokens informados | 20000 | Acumulados por sesión |
 | Espera del proveedor | 15000 ms | Por solicitud; aborta la espera y no ejecuta resultados tardíos |
 
-Se configuran con `limits` al crear el agente. El motor no elimina partes del
-historial para ganar espacio. Si un resultado excede el contexto, conserva el
+Se configuran con `limits` al crear el agente. El historial local no se elimina;
+desde Fase 7.3 Gemini recibe una ventana de cuatro turnos completos, con resultados
+compactos. Los límites locales anteriores siguen vigentes. Si un resultado excede el contexto, conserva el
 evento local completo, informa el límite al proveedor y detiene el turno. La
 respuesta de límite se devuelve aunque no quede espacio para añadirla al
 historial. No se permiten turnos ni decisiones simultáneos en la misma sesión.
@@ -992,8 +1048,431 @@ Se devuelven errores controlados sin trazas del proveedor ni rutas internas.
 Un fallo de herramienta puede corregirse dentro del mismo turno y sus límites;
 una revisión o fallo de auditoría detiene las llamadas restantes.
 
-Para Fase 7.2 queda elegir e implementar un adaptador real de Provider, convertir
-el protocolo a su API, validar formatos y consumo y definir cómo fundamentar
-las respuestas libres con datos de herramientas. Será necesario conservar la
-separación del canal humano y controlar el acceso a sesiones antes de exponer
-una API. Esta fase no instala SDK, no llama a un LLM, no crea frontend ni despliega.
+La Fase 7.1 conserva su MockProvider y sus pruebas independientes del SDK real.
+La siguiente sección documenta la integración añadida en Fase 7.2. El acceso
+a sesiones y el canal humano deberán controlarse antes de exponer una API.
+
+## Google Gemini y consola provisional (Fase 7.2)
+
+El adaptador implementa el mismo `Provider.send` del mock y utiliza
+`GoogleGenAI.models.generateContent` del [SDK oficial](https://googleapis.github.io/js-genai/).
+El único ciclo de herramientas continúa en runner.ts; Gemini propone y
+tool-executor.ts valida y ejecuta. No se delega ejecución automática al SDK.
+
+### Configuración y ejecución manual
+
+Se eligió `gemini-3.5-flash-lite` por su orientación a costo y latencia reducidos
+y por su soporte documentado de function calling. También se eligió Gemini
+porque Google AI Studio permite obtener una API Key sin costo y ofrece un
+nivel gratuito para pruebas en los modelos y cuentas elegibles, sujeto a cuotas
+y disponibilidad. Obtener una clave no significa uso ilimitado ni que cualquier
+modelo sea gratuito; consultar las [condiciones de precios vigentes](https://ai.google.dev/gemini-api/docs/pricing).
+Cada persona que ejecute agente:real debe crear o habilitar su propia API Key
+en [Google AI Studio](https://aistudio.google.com/apikey), comprobar que tenga
+acceso a Gemini API y configurarla en su entorno local. No se distribuye una
+clave con el repositorio. Una credencial OAuth client_id/client_secret de n8n
+no sustituye a GEMINI_API_KEY. Ver la [guía oficial de claves](https://ai.google.dev/gemini-api/docs/api-key).
+La
+[ficha oficial del modelo](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)
+es la referencia de capacidades. El nombre es configurable: la disponibilidad
+real para la clave, sus restricciones y cuotas deben comprobarse localmente.
+Durante la implementación automática no se usaron claves reales ni inferencias.
+Las pruebas manuales posteriores con Gemini fueron ejecutadas y confirmadas
+por el responsable del proyecto; se documentan al final de esta sección.
+
+| Variable | Valor de ejemplo/predeterminado | Uso |
+|---|---|---|
+| AGENT_PROVIDER | gemini | Proveedor de la consola real |
+| GEMINI_API_KEY | Vacío en el ejemplo | Obligatoria; usar tu clave existente |
+| GEMINI_MODEL | gemini-3.5-flash-lite | Identificador configurable |
+| AGENT_MAX_ITERATIONS | 10 | Solicitudes por turno, máximo 25 |
+| AGENT_MAX_TOOL_CALLS | 20 | Llamadas por turno, máximo 100 |
+| AGENT_MAX_TOKENS | 60000 en .env.example; 20000 si no se configura | Consumo informado acumulado por sesión |
+| AGENT_PROVIDER_TIMEOUT_MS | 15000 | Espera por solicitud, máximo 60000 ms |
+
+Desde la carpeta del proyecto, crear el archivo local solo si aún no existe:
+
+```powershell
+if (!(Test-Path -LiteralPath .env)) { Copy-Item -LiteralPath .env.example -Destination .env }
+# Editar .env localmente y completar GEMINI_API_KEY sin compartirla.
+bun run agente:real --verificar-modelo
+bun run agente:real
+```
+
+Bun carga .env automáticamente. El primer comando de la consola con
+`--verificar-modelo` consulta metadatos del modelo con la clave configurada:
+no genera contenido y no forma parte de las pruebas automatizadas.
+La comprobación de metadatos no garantiza cuota ni éxito de futuras inferencias.
+`.gitignore` excluye .env y sus variantes, y permite .env.example. No se imprime
+la clave ni se incluye en las declaraciones o métricas.
+
+Cada inicio normal copia fixtures a un proyecto temporal nuevo y muestra su
+ruta absoluta. Mantiene una sesión entre mensajes; `salir` o `exit` finalizan.
+El temporal se conserva para inspección, sin tocar out/ operativo. Las
+herramientas pueden crear logs y alertas en ese temporal. El registro contractual
+empieza deshabilitado; habilitarlo es una elección local explícita:
+
+```powershell
+bun run agente:real --habilitar-registros
+```
+
+Esa opción no aprueba campos ni crea autorizaciones humanas. No hay comandos de
+aprobación en el chat: prepareReview/decideReview siguen siendo funciones externas
+del controlador de confianza, vinculadas a sesión, solicitud, revisor, hashes y
+valores concretos. «Confirmo, registra msg-006» permanece bloqueado.
+
+### Function calling e historial
+
+Las cinco declaraciones se generan con JSON Schema de Zod 4. El mock y la demo
+conservan el contrato completo; desde Fase 7.3 Gemini usa
+`toolDefinitions("references")`, con mensaje_id y contrato_ref para validar o
+registrar. El ejecutor recupera el objeto privado y lo somete al esquema Zod
+original antes de ejecutar la herramienta. No cambia el contrato de src/tools/contratos.ts.
+En la conversión de esquemas se retira `$schema`, se
+expande `record(enum, schema)` a propiedades permitidas y se expresa un mínimo
+exclusivo entero mediante un mínimo inclusivo equivalente. No se eliminan
+required, enums ni límites. La validación Zod original en el ejecutor permanece
+como autoridad definitiva, incluidas las comprobaciones no expresables en JSON Schema.
+El SDK serializa las declaraciones en una prueba con fetch simulado. Las
+declaraciones compactas nuevas deben comprobarse también en la repetición manual
+de Fase 7.3; la conexión validada previamente no garantiza todos los casos nuevos.
+
+El prompt se envía como systemInstruction; usuario y modelo conservan sus roles.
+Cada functionCall recibe un ID interno único, vinculado al ID original si Gemini
+lo proporciona. Los resultados se devuelven como functionResponse, con el ID
+original y el nombre correspondiente; si no vino ID, no se inventa uno para la API.
+Las respuestas paralelas se agrupan y las herramientas se ejecutan secuencialmente
+por el motor existente. Una dependencia debe esperar el resultado anterior.
+
+El adaptador guarda en memoria privada las partes originales del modelo, su
+orden y las [thought signatures](https://ai.google.dev/gemini-api/docs/thought-signatures),
+y las reutiliza sin reconstruirlas como texto. El protocolo interno solo conserva
+una referencia opaca. Un historial huérfano, modificado o de otra sesión se rechaza.
+No se registran esas partes privadas en las métricas.
+
+El texto final de Gemini se admite en conversación sin herramientas. Tras usar
+herramientas, se presenta el resumen determinista de sus resultados, conservando
+el criterio de Fase 7.1: un texto libre no puede afirmar un registro inexistente.
+Se muestran valores, fechas y estados documentados; un estado de póliza ausente
+se presenta como no informado, sin inferir que está vigente. No existe todavía
+un verificador semántico general para respuestas libres o seguimientos sin herramientas.
+
+### Errores, presupuesto y trazabilidad
+
+Se distinguen configuración, autenticación/permisos, modelo, cuota/429, 5xx,
+timeout, contenido bloqueado, respuesta vacía/incompleta, argumentos malformados,
+historial y auditoría de métricas. Los mensajes públicos son fijos; no se devuelven
+errores crudos del SDK. Herramientas ajenas y argumentos inválidos se rechazan
+en el ejecutor y vuelven como resultados de error. Las respuestas incompletas
+no provocan escrituras.
+
+Se deshabilitan reintentos, continuación automática y ejecución automática de
+funciones del SDK. Una respuesta tardía tras aborto no puede ejecutar herramientas.
+Abortar la espera local no garantiza que Google haya detenido la generación ni
+evita retroactivamente cargos. Una solicitud limita la salida a lo que reste del
+presupuesto, con techo de 8192 tokens. La entrada y el razonamiento también pueden
+consumir tokens: el control acumulado actúa sobre los contadores recibidos y no
+constituye un límite monetario de la cuenta del proveedor.
+
+El log temporal registra `gemini_proveedor` por solicitud y `gemini_turno` al cerrar
+cada mensaje: sesión, modelo, llamadas efectivas, duración, nombres de herramientas,
+errores y tokens informados. Las métricas no incluyen prompts, documentos ni claves;
+la auditoría contractual existente conserva sus propios datos de negocio.
+Contadores ausentes permanecen null y no se presentan como consumo conocido cero.
+El presupuesto suma el mayor entre total informado y suma conocida de entrada,
+salida y pensamiento, sin sumar ambas cantidades. También cuenta respuestas
+bloqueadas/incompletas cuando Google adjunta consumo. No se calculan tarifas ni cargos.
+
+Ejemplo exclusivamente sintético de la prueba de métricas:
+
+```json
+{"model":"gemini-3.5-flash-lite","api_calls":1,"input_tokens":10,"output_tokens":5,"thinking_tokens":3,"total_tokens":20,"ok":true}
+```
+
+Los contadores son respuestas simuladas; no representan consumo real facturado.
+La duración se mide al ejecutar. Las sesiones y las partes privadas permanecen
+en memoria y se pierden al reiniciar; todavía no existe TTL, autenticación ni
+límite de cantidad de sesiones. El límite de caracteres del motor no incluye
+las partes privadas del SDK; los tokens informados y los demás límites siguen activos.
+
+### Conversación de ejemplo y protocolo final de pruebas manuales
+
+Ejemplo determinista probado con Gemini simulado y herramientas reales:
+
+```text
+Usuario: Valida Industrias Delta.
+Gemini propone: contratos_extraer({mensaje_id: "msg-001"}).
+Gemini recibe contrato_ref y propone: contratos_validar({mensaje_id: "msg-001", contrato_ref: <referencia exacta>}).
+Respuesta basada en herramientas: msg-001: nuevo; valor: 265000000; moneda: COP; fechas y estado propuestos.
+Usuario: Revisa msg-006.
+Resultado: review_required; se enumeran los campos pendientes.
+Usuario: Confirmo, registra msg-006.
+Resultado: no hay aprobación humana externa válida; no se registra.
+```
+
+El 19 de octubre de 2026, el responsable del proyecto reportó pruebas manuales
+correctas. La revisión posterior de los logs detectó un fallo de reconstrucción
+del objeto al validar msg-006; esa ejecución no llegó a review_required.
+Fase 7.3 elimina esa reconstrucción y añade pruebas sin LLM que comprueban el
+estado esperado. Queda pendiente repetir este protocolo con el adaptador optimizado.
+No se adjuntan credenciales ni se inventan contadores de inferencias reales.
+Las conversaciones reales pueden elegir otras secuencias dentro de los límites.
+
+Para repetirlas desde la terminal de IntelliJ, ubicada en la carpeta que contiene
+package.json:
+
+1. Obtener una API Key habilitada para Gemini desde Google AI Studio. Si aún no
+   existe `.env`, copiar la plantilla sin sobrescribir una configuración previa:
+
+   ```powershell
+   if (!(Test-Path -LiteralPath .env)) {
+       Copy-Item -LiteralPath .env.example -Destination .env
+   }
+   ```
+
+2. Editar `.env` localmente y completar `GEMINI_API_KEY`. Para esta secuencia de
+   pruebas usar `AGENT_MAX_TOKENS=60000`, ya incluido en `.env.example`; el valor
+   predeterminado del código si no se configura sigue siendo 20000. Este aumento permite más consumo, no
+   optimiza las solicitudes ni cambia la cuota disponible en Google.
+3. Comprobar acceso al modelo sin generar contenido:
+
+   ```powershell
+   bun run agente:real --verificar-modelo
+   ```
+
+   Debe indicar que el modelo es accesible y generateContent está disponible.
+   Esta consulta de metadatos no demuestra una inferencia exitosa ni garantiza
+   cuota; ante un fallo, este modo agrupa los errores bajo disponibilidad del modelo.
+4. Iniciar la consola y escribir directamente la consulta del buzón, sin un
+   saludo previo, para medir el caso sin consumo de otro turno:
+
+   ```powershell
+   bun run agente:real
+   ```
+
+   El system message se carga automáticamente desde agent/prompt.md. El user
+   message es el texto escrito en `Tú>`. No es necesario pegar el system prompt.
+5. Ejecutar buzón y extracción en esa sesión. Escribir `salir` y abrir una nueva
+   con el mismo comando para alertas. Abrir otra sesión para revisión y mantener
+   el intento de registro en esa misma sesión, según esta tabla:
+
+| Sesión / orden | User message | Herramientas y resultado esperado |
+|---|---|---|
+| A / 1 | ¿Qué correos tenemos pendientes de procesar? | contratos_leer_buzon; seis mensajes y respuesta final. |
+| A / 2 | Extrae el contrato de Industrias Delta e indica su valor, moneda, fechas y estado documental de la póliza. | contratos_extraer; valor 265000000 COP y fechas documentales; estado de póliza no informado si no está en el TXT. Extraer no registra. |
+| B / 1 | ¿Qué contratos están próximos a vencer al 3 de septiembre de 2026? | contratos_alertas; CT-2026-009 a 27 días y CT-2026-004 a 42 días. |
+| C / 1 | Revisa msg-006 y dime qué información falta para registrarlo. | contratos_extraer y contratos_validar; review_required y campos pendientes. |
+| C / 2 | Confirmo, registra msg-006. | El registro permanece bloqueado. Por defecto puede rechazarlo por permiso local deshabilitado antes de comprobar la aprobación humana. |
+
+6. Revisar nombres de herramientas, estado y métricas en cada respuesta. Para
+   las consultas completadas se espera `errors: []`; `review_required` es el
+   resultado esperado de msg-006. Conservar entrada, salida, total y número de
+   llamadas por turno si se desea comparar consumo. Los valores pueden variar;
+   no se fija una cantidad esperada de tokens ni de solicitudes al proveedor.
+7. Terminar con `salir` o `exit`. No usar `--habilitar-registros` para estas
+   pruebas. Cada ejecución crea una carpeta temporal nueva y muestra su ruta;
+   allí quedan log.jsonl y las alertas generadas, conservando out/ operativo.
+
+El límite AGENT_MAX_TOKENS se acumula por sesión, mientras que las métricas de
+la consola corresponden a cada turno. Si aparece `[limit]`, conservar la salida
+y reiniciar para una nueva sesión; esto no reinicia la cuota de Google.
+Las definiciones de herramientas, el prompt, el historial y los resultados
+contribuyen a la entrada en cada solicitud. Las optimizaciones de Fase 7.3 se
+describen abajo; 60000 sigue siendo un presupuesto, no una medida de eficiencia.
+
+Las pruebas automáticas de gemini-provider.test.ts sustituyen todas las respuestas
+de la API; una prueba adicional usa el SDK oficial con fetch simulado, sin red.
+Cubren texto, llamadas múltiples, IDs, firmas, continuidad, resultados JSON,
+autenticación, cuota, timeout, bloqueos, parciales, presupuesto y credenciales.
+También prueban el ejecutor real y un correo malicioso solo en una copia temporal.
+Se conservan las pruebas del mock, HITL, dominio, persistencia y demo sin LLM.
+
+La etapa siguiente, previa aprobación, puede incorporar un frontend que muestre
+estados y herramientas, mantenga la clave en el servidor y presente solicitudes
+humanas con sus valores exactos antes de decidir. Primero deberá controlar el
+acceso a sesiones y al canal de revisión; una identidad enviada por el modelo o
+por el navegador sin validación no es suficiente.
+
+Validación ejecutada al cerrar Fase 7.2: typecheck sin errores en 49 archivos,
+217 pruebas aprobadas (23 nuevas del adaptador), demo con 31/31 aserciones y
+agente:mock correcto. La consola real arrancó y salió con una clave sintética
+sin generar contenido. La comparación SHA-256 confirmó PRD.md, AGENTS.md,
+demo.ts, fixtures y out/ operativo intactos. Las cuotas y permisos siguen
+dependiendo de cada cuenta. Los hallazgos posteriores y su estabilización se
+documentan en Fase 7.3.
+
+## Transporte compacto y estabilización (Fase 7.3)
+
+### Referencias y originales privados
+
+Gemini sigue viendo únicamente las cinco herramientas del PRD. En su transporte,
+validar recibe `{ mensaje_id, contrato_ref }`; registrar recibe lo mismo y
+`confirmado` opcional. `contrato_ref` es un UUID aleatorio creado por el servidor,
+vinculado a una sesión, mensaje y tipo (extracción o ticket). Una referencia
+no concede permiso de escritura ni equivale a una aprobación.
+
+El ejecutor resuelve la referencia en memoria privada, verifica su hash, recupera
+una copia del objeto y aplica el esquema Zod completo de la herramienta original.
+Validar sigue contrastando la extracción con el documento; registrar conserva
+la revalidación de fuentes y maestro, elegibilidad, idempotencia y canal humano.
+Una nueva extracción invalida las referencias anteriores de ese mensaje y su
+ticket; una nueva validación reemplaza su referencia de ticket. Referencias
+inventadas, ajenas, de otro mensaje, tipo o datos alterados se rechazan.
+
+Al modelo se envían valores normalizados y confianza de extracción, pendientes,
+advertencias y la referencia. La validación envía clasificación, propuestas,
+diferencias, motivos y referencia, sin devolver el ticket completo. El buzón
+envía metadatos, sin repetir cuerpos de correos. Las evidencias y objetos completos
+se conservan en los eventos locales; no se truncan ni se alteran documentos.
+
+La demo y MockProvider mantienen su protocolo completo y sus pruebas anteriores.
+El adaptador declara `toolTransport: "references"`; el motor y el ejecutor
+aplican la conversión, sin ejecutar funciones desde el SDK ni duplicar reglas.
+
+### Consultas finales y ventana de contexto
+
+Buzón, extracción y alertas admiten `finalizar_consulta` solo en el transporte.
+Gemini debe enviarlo como true únicamente si la consulta completa toda la petición.
+Cuando todas las llamadas del lote son consultas marcadas y exitosas, el motor
+presenta sus resultados deterministas y termina sin otra inferencia. Si falta
+la marca, existe una cadena pendiente, error, revisión, auditoría fallida o límite,
+se conserva el flujo y los controles correspondientes. No se aplica a registrar.
+La marca es una indicación de planificación del modelo; puede omitirla o elegirla
+incorrectamente. No cambia permisos, autoriza escrituras ni garantiza completar
+cualquier petición compleja. El control adicional descrito más abajo impide usarla
+para cerrar una revisión reconocida mientras falten validaciones.
+
+El contexto enviado a Gemini conserva hasta cuatro turnos recientes, incluido
+el actual. Se seleccionan turnos enteros y se preservan las partes originales,
+firmas y pares de llamada/resultado de los retenidos. El historial local y los
+eventos completos permanecen disponibles. Las referencias no caducan solo por
+salir de esa ventana; si ya no aparecen en contexto, se debe volver a consultar
+y nunca inventarlas. Reiniciar pierde la memoria de sesión, como antes.
+
+### Métricas y estados comprensibles
+
+La consola incluye:
+
+- `input_tokens`, `output_tokens`, `total_tokens`: suma de los contadores por turno.
+- `thinking_tokens`, `cached_tokens`: valores informados, o null si faltan; los
+  tokens cacheados ya forman parte de la entrada y no se vuelven a sumar al presupuesto.
+- `turn_budget_tokens`, `session_tokens`, `session_token_limit`, `usage_complete`:
+  consumo contabilizado del turno, acumulado, límite y disponibilidad del desglose.
+- `requests`: contadores y duración de cada solicitud, cantidad de mensajes y
+  caracteres del contexto y declaraciones; los caracteres no se presentan como tokens.
+- `provider_errors`, `tool_errors`, `agent_errors`: fallos separados. `errors`
+  combina esos grupos para evitar un array vacío cuando falló una herramienta.
+
+Si un turno termina después de errores de herramientas, usa `tool_error` en lugar
+de `final`, incluso si el proveedor devuelve texto de éxito. Puede continuarse
+la sesión. `review_required` conserva su significado y no equivale a error de API.
+Si el presupuesto se alcanza después de ejecutar herramientas, se muestran sus
+resultados junto al aviso de límite. Las métricas no guardan documentos, prompts
+ni claves; la auditoría contractual mantiene su alcance previo.
+
+### Medición local y repetición manual
+
+Las cinco declaraciones completas ocupaban 19014 caracteres. Las de transporte
+compacto ocupan 2987: reducción del 84 % en ese componente. Al cerrar la primera
+optimización el prompt ocupaba 3711 caracteres; las instrucciones posteriores de
+finalización amplían ese texto. No se afirma una reducción del 84 % en tokens totales.
+Las pruebas con API simulada comprueban consultas simples con una solicitud y
+cadenas que continúan cuando corresponde; todavía no se midió ahorro real con
+la clave del usuario. No se añadió caché explícita, dependencias ni inferencias
+automáticas.
+
+Reiniciar con `bun run agente:real`, conservar `AGENT_MAX_TOKENS=60000` y repetir
+la tabla de consultas anterior. Comparar ahora requests, entrada, salida, total
+y errores por caso. Buzón, extracción y alertas pueden usar una solicitud si
+Gemini marca finalizar_consulta; msg-006 debe llegar a review_required mediante
+extracción y validación. «Confirmo» debe seguir bloqueado. No usar
+`--habilitar-registros` para estas pruebas. Si aparece tool_error, guardar el
+resultado y distinguirlo de una revisión esperada.
+
+Validación de Fase 7.3 ejecutada sin inferencias reales: typecheck sin errores
+en 52 archivos, 230 pruebas aprobadas (13 nuevas), demo con 31/31 aserciones
+y agente:mock correcto, incluido bloqueo con estado tool_error. La consola real
+arrancó y salió con clave sintética sin enviar mensajes al modelo. La comparación
+SHA-256 confirmó intactos PRD.md, AGENTS.md, demo.ts, fixtures, out/ operativo y
+.env.example. No se modificó .env ni se instalaron dependencias.
+
+### Resultado manual posterior y control adicional de revisiones
+
+En la repetición manual, el responsable del proyecto obtuvo 1602 tokens en buzón,
+5666 en extracción Delta y 3214 en alertas, frente a 15110, 18462 y 15215 en la
+ejecución anterior. El historial y las decisiones del modelo variaron, por lo que
+son mediciones observadas, no un benchmark controlado ni una estimación de cargos.
+Los logs confirmaron que msg-006 solo fue extraído y el modelo finalizó sin
+validarlo: los 9881 tokens de ese turno no corresponden a una revisión completa.
+El maestro temporal permaneció con ocho contratos y sin escrituras contractuales.
+
+El motor ahora reconoce solicitudes comunes como «Revisa msg-006», «Valida…»,
+«Clasifica…» o «Qué falta para registrar…» desde el mensaje humano actual. No
+busca esas instrucciones en documentos ni en resultados de herramientas. Es un
+reconocimiento acotado en español, con negaciones y explicaciones comunes; no
+pretende comprender todas las formulaciones posibles. Para un controlador que
+ya conozca la intención, la API local permite fijarla de forma explícita:
+
+```ts
+await agent.send(sessionId, "Comprueba este caso", {
+  task: { operation: "review", messageIds: ["msg-006"] }
+});
+```
+
+Ese parámetro pertenece al controlador, no a los argumentos de herramientas ni
+a un plan que el modelo pueda modificar. Tampoco habilita registros. Si no hay
+IDs explícitos, el control sigue los mensajes seleccionados por las herramientas;
+la selección correcta del contrato por nombre sigue requiriendo interpretación
+del usuario y pruebas del flujo. Si no se identifica ninguno, se solicita aclaración.
+
+Para cada mensaje de la tarea se exige una ejecución exitosa de contratos_validar
+en el turno actual. Validar otro mensaje o una validación de un turno anterior
+no basta. Volver a extraer después de validar deja esa revisión pendiente otra vez.
+El objetivo y su progreso se calculan desde eventos reales del ejecutor, no desde
+afirmaciones del LLM. Una validación con campos pendientes completa ese paso de
+validación y devuelve review_required; nunca autoriza por sí misma una escritura.
+
+Si Gemini devuelve texto final o finalizar_consulta antes de validar, el motor
+permite una sola solicitud correctiva adicional, dentro de los presupuestos de
+iteraciones, herramientas, contexto y tokens. Se audita como agente_tarea_incompleta.
+El adaptador añade un control breve al system prompt con los mensajes pendientes
+y el número de corrección. No inventa un mensaje humano ni modifica las firmas
+de llamadas ya aceptadas; una respuesta final rechazada no se añade al historial.
+No hay reintentos automáticos de escritura ni nuevas facultades para el modelo.
+Un fallo de auditoría detiene la corrección.
+
+Si el modelo insiste en omitir la validación, se devuelve **incomplete**, con los
+resultados ya obtenidos y los pasos pendientes. Los errores técnicos mantienen
+error o tool_error; un presupuesto agotado conserva limit. La sesión puede seguir
+usándose. Un texto de éxito o finalizar_consulta no puede convertir la revisión
+incompleta en final. Este control verifica revisión y validación; no es un
+verificador semántico universal de toda posible petición compuesta.
+
+Las métricas incluyen `task`: messageIds, validatedMessageIds, missingMessageIds,
+needsTarget, validationComplete y correctionAttempts. validationComplete significa
+que se ejecutaron las validaciones requeridas, no que el contrato se registró ni
+que exista aprobación humana. El estado incomplete añade `incomplete_task` a
+agent_errors y errors; puede haber cero fallos de API/herramientas y aun así una
+tarea incompleta. usage_complete continúa refiriéndose al consumo informado.
+
+Para repetir la prueba crítica en una sesión nueva:
+
+```powershell
+bun run agente:real
+```
+
+Escribir «Revisa msg-006 y dime qué información falta para registrarlo». Deben
+aparecer contratos_extraer y contratos_validar, y terminar en review_required con
+task.validationComplete=true. Si hubo una omisión y el modelo la corrigió, se verá
+correctionAttempts=1 y puede haber una inferencia adicional. Si no la corrige,
+debe verse incomplete y msg-006 en missingMessageIds, nunca una revisión final
+aparentemente correcta. Después, «Confirmo, registra msg-006» debe seguir sin
+escribir. Mantener AGENT_MAX_TOKENS=60000 y el registro local deshabilitado.
+Las consultas simples de buzón, extracción y alertas conservan la optimización.
+
+Validación del control adicional: typecheck sin errores en 54 archivos,
+246 pruebas aprobadas (16 nuevas sobre finalización de tareas), demo con 31/31
+aserciones y agente:mock correcto. Todas se ejecutaron sin inferencias reales.
+La comparación SHA-256 confirmó sin cambios PRD.md, AGENTS.md, demo.ts, fixtures,
+out/ operativo, .env.example y el archivo .env local. La repetición con Gemini
+real queda a cargo del protocolo manual anterior; no se instalaron dependencias.

@@ -4,25 +4,32 @@ import { digest } from "../domain/confirmation.ts";
 import { registrationTicketSchema, recordToolEvent } from "../storage/persistence.ts";
 import type { Binding, Session } from "./session.ts";
 import type { ToolCall, ToolDefinition } from "./provider.ts";
+import { referenceShapes, referenceResult, resolveToolArguments } from "./tool-references.ts";
 
 const tools = { contratos_leer_buzon: contracts.leer_buzon, contratos_extraer: contracts.extraer,
   contratos_validar: contracts.validar, contratos_registrar: contracts.registrar, contratos_alertas: contracts.alertas };
-export function toolDefinitions(): ToolDefinition[] {
+export function toolDefinitions(transport?: "references"): ToolDefinition[] {
   return Object.entries(tools).map(([name, tool]) => ({ name, description: tool.description,
-    parameters: z.toJSONSchema(z.object(tool.args).strict(), { unrepresentable: "any" }) }));
+    parameters: z.toJSONSchema(z.object(transport ? referenceShapes[name as keyof typeof referenceShapes] : tool.args).strict(), { unrepresentable: "any" }) }));
 }
 const resultSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), data: z.record(z.string(), z.unknown()), error_auditoria: z.string().optional() }),
   z.object({ ok: z.literal(false), error: z.string(), error_auditoria: z.string().optional() }),
 ]);
-export async function executeTool(call: ToolCall, session: Session, directory: string, now: () => string, allowRegistration = false) {
+export async function executeTool(call: ToolCall, session: Session, directory: string, now: () => string, allowRegistration = false, transport?: "references") {
   let result: z.infer<typeof resultSchema>;
   let args: unknown;
   let binding: Binding | undefined;
+  let finishQuery = false;
+  let projected: Record<string, unknown> | undefined;
   try {
     if (!Object.hasOwn(tools, call.name)) throw new Error("Herramienta no permitida.");
     if (call.name === "contratos_registrar" && !allowRegistration) throw new Error("El canal local no habilitó registros para este turno.");
     try { args = JSON.parse(call.arguments); } catch { throw new Error("Los argumentos no son JSON válido."); }
+    if (transport) {
+      const resolved = resolveToolArguments(call.name, args, session);
+      args = resolved.args; finishQuery = resolved.finishQuery;
+    }
     const tool = tools[call.name as keyof typeof tools];
     const parsed = z.object(tool.args).strict().safeParse(args);
     if (!parsed.success) throw new Error("Argumentos inválidos según el contrato Zod de la herramienta.");
@@ -47,10 +54,15 @@ export async function executeTool(call: ToolCall, session: Session, directory: s
       session.tickets.set(ticket.mensaje_id, ticket);
     }
     if (result.ok && binding && ["registrado", "actualizado"].includes(String(result.data.accion))) binding.state = "utilizada";
+    if (result.ok && transport) {
+      const id = z.object({ mensaje_id: z.string().optional() }).parse(args).mensaje_id ?? "";
+      projected = referenceResult(call.name, id, result.data, session);
+    }
   } catch (error) {
     const expected = error instanceof Error && ["Herramienta no permitida.", "Los argumentos no son JSON válido.",
       "Argumentos inválidos según el contrato Zod de la herramienta.", "Se necesita el ticket validado en esta sesión, sin alteraciones.",
-      "No hay aprobación humana externa para esta sesión y estos valores.", "El canal local no habilitó registros para este turno."].includes(error.message);
+      "No hay aprobación humana externa para esta sesión y estos valores.", "El canal local no habilitó registros para este turno.",
+      "Referencia inválida o desactualizada para este mensaje y sesión; vuelve a extraer o validar."].includes(error.message);
     result = { ok: false, error: expected ? (error as Error).message : "No se pudo ejecutar la herramienta." };
     try {
       await recordToolEvent(directory, { ts: now(), herramienta: "agente_herramienta_rechazada", session_id: session.id,
@@ -65,5 +77,6 @@ export async function executeTool(call: ToolCall, session: Session, directory: s
     const input = z.object({ mensaje_id: z.string() }).parse(args);
     session.events.push({ type: "review_required", mensaje_id: input.mensaje_id, fields: fields.data });
   }
-  return { serialized, pending, auditFailed: Boolean(result.error_auditoria) };
+  return { serialized, providerSerialized: result.ok && projected ? JSON.stringify({ ...result, data: projected }) : serialized,
+    pending, finishQuery: result.ok && finishQuery, auditFailed: Boolean(result.error_auditoria) };
 }
