@@ -63,6 +63,9 @@ coverage/
 AGENTS.md
 **/AGENTS.md
 
+# Guion personal de defensa: conservar solo en el repositorio local
+/DEFENSA_TECNICA.md
+
 # Archivos temporales
 *.log
 *.tmp
