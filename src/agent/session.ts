@@ -32,5 +32,9 @@ export function createSessionStore() {
       const session = this.get(id);
       return structuredClone({ id, messages: session.messages, events: session.events, tokens: session.tokens, usageComplete: session.usageComplete });
     },
+    remove(id: string) {
+      if (sessions.get(id)?.busy) return false;
+      return sessions.delete(id);
+    },
   };
 }

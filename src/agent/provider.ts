@@ -18,4 +18,4 @@ export type Message =
 export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
 export type ProviderRequest = { sessionId: string; messages: Message[]; tools: ToolDefinition[]; maxOutputTokens: number; signal: AbortSignal;
   task?: TaskProgress };
-export type Provider = { toolTransport?: "references"; send(request: ProviderRequest): Promise<unknown> };
+export type Provider = { toolTransport?: "references"; send(request: ProviderRequest): Promise<unknown>; releaseSession?(id: string): void };

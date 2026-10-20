@@ -8,7 +8,7 @@ import { extraer, validar, registrar, leer_buzon, alertas, type ToolContext } fr
 import { extractionSchema, relativePathSchema, validationSchema } from "./src/domain/schemas.ts";
 import { registrationTicketSchema, type RegistrationTicket } from "./src/storage/persistence.ts";
 import { readCsv } from "./src/storage/csv.ts";
-import { hashBytes } from "./src/storage/audit.ts";
+import { hashBytes, optionalBytes } from "./src/storage/audit.ts";
 
 const root = fileURLToPath(new URL("./", import.meta.url));
 const timestamp = "2026-09-03T12:00:00.000Z";
@@ -52,8 +52,10 @@ async function hashes(directory: string, prefix = ""): Promise<Record<string, st
   return result;
 }
 async function protectedHashes(source: string) {
+  // AGENTS.md es local y está excluido de Git; si existe, también debe conservarse.
+  const agents = await optionalBytes(join(source, "AGENTS.md"));
   return { fixtures: await hashes(join(source, "fixtures")), out: await hashes(join(source, "out")),
-    prd: hashBytes(await readFile(join(source, "PRD.md"))), agents: hashBytes(await readFile(join(source, "AGENTS.md"))) };
+    prd: hashBytes(await readFile(join(source, "PRD.md"))), agents: agents === null ? null : hashBytes(agents) };
 }
 
 // El argumento source solo facilita pruebas con copias dañadas; nunca se escribe en él.

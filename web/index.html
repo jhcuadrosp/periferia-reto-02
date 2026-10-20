@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Agente de Gestión Contractual | Reto 2</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#message">Ir al chat</a>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <a class="brand" href="#chat"><span class="brand-mark" aria-hidden="true">C<span>·</span></span><span>CONTRACTUAL<small>ESPACIO DE TRABAJO</small></span></a>
+      <div class="sidebar-section">GESTIÓN DE CONTRATOS</div>
+      <nav>
+        <a class="nav-link selected" href="#chat"><span aria-hidden="true">◫</span> Asistente contractual</a>
+        <a class="nav-link" href="#tools-panel"><span aria-hidden="true">⌘</span> Actividad de herramientas</a>
+        <a class="nav-link" href="#reviews-panel"><span aria-hidden="true">▤</span> Revisiones pendientes</a>
+      </nav>
+      <div class="sidebar-note"><span class="lock-icon" aria-hidden="true">◇</span><strong>Un canal seguro de consulta</strong><p>Consulta y valida información. Las aprobaciones requieren un canal humano autorizado.</p></div>
+      <div class="sidebar-footer"><span class="sidebar-dot"></span> Reto 2 · Periferia IT Group<small>Demostración local</small></div>
+    </aside>
+    <main>
+      <header class="topbar"><span class="breadcrumb">Gestión contractual <span>/</span> Asistente</span><div class="topbar-right"><span class="demo-tag">DEMO</span><span id="connection" class="connection" role="status"><span class="status-dot"></span><span id="connection-text">Conectando…</span></span></div></header>
+      <div class="workspace">
+        <section class="page-heading"><div><p class="eyebrow">RETO 2 · PERIFERIA IT GROUP</p><h1>Agente de Gestión Contractual</h1><p class="subtitle">La información de tus contratos, en una conversación.</p></div><button id="new-session" class="button-secondary" type="button" disabled><span aria-hidden="true">＋</span> Nueva conversación</button></section>
+        <div id="mode-note" class="mode-note" hidden></div>
+        <div id="notice" class="notice" role="alert" hidden></div>
+        <section class="overview" aria-label="Resumen de la conversación">
+          <div class="overview-item"><span class="metric-icon blue" aria-hidden="true">⌘</span><div><strong id="tool-count">0</strong><span>Llamadas a herramientas</span></div></div>
+          <div class="overview-item"><span class="metric-icon amber" aria-hidden="true">▤</span><div><strong id="review-count">0</strong><span>Revisiones pendientes</span></div></div>
+          <div class="overview-item safety"><span class="metric-icon green" aria-hidden="true">◇</span><div><strong>Canal de consulta</strong><span>Registro contractual deshabilitado</span></div></div>
+        </section>
+        <div class="panels">
+          <section id="chat" class="card chat-card" aria-labelledby="chat-title">
+            <div class="panel-heading"><div class="panel-title"><span class="assistant-icon" aria-hidden="true">✦</span><div><h2 id="chat-title">Asistente contractual</h2><p id="session-label">Preparando conversación</p></div></div><div class="chat-actions"><span id="provider-label" class="subtle-tag">Agente</span><button id="refresh" type="button" class="refresh-button" title="Actualizar historial" aria-label="Actualizar historial" disabled>↻</button></div></div>
+            <div id="chat-scroll" class="chat-scroll" tabindex="0" aria-label="Historial de la conversación">
+              <div id="welcome" class="welcome"><span class="welcome-icon" aria-hidden="true">✦</span><span class="eyebrow">TU ASISTENTE DE CONTRATOS</span><h3>¿Qué necesitas revisar hoy?</h3><p>Explora el buzón, consulta un contrato o identifica<br class="desktop-break"> qué información necesita revisión.</p><div id="suggestions" class="suggestions">
+                <button class="suggestion" type="button" data-prompt="¿Qué correos tenemos pendientes de procesar?"><span>Buzón <span aria-hidden="true">↗</span></span>Consultar correos pendientes</button>
+                <button class="suggestion" type="button" data-prompt="Extrae la información contractual de Industrias Delta."><span>Extracción <span aria-hidden="true">↗</span></span>Revisar Industrias Delta</button>
+                <button class="suggestion" type="button" data-prompt="Revisa msg-006 e indica qué campos faltan."><span>Revisión <span aria-hidden="true">↗</span></span>Identificar datos faltantes</button>
+                <button class="suggestion" type="button" data-prompt="¿Qué contratos están próximos a vencer al 3 de septiembre de 2026?"><span>Alertas <span aria-hidden="true">↗</span></span>Consultar próximos vencimientos</button>
+              </div></div>
+              <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+              <div id="processing" class="processing" role="status" hidden><span class="spinner" aria-hidden="true"></span>El agente está procesando tu consulta…</div>
+            </div>
+            <form id="chat-form" class="composer"><label for="message">Tu consulta</label><div class="input-box"><textarea id="message" name="message" maxlength="10000" rows="2" placeholder="Pregunta sobre tus contratos…" disabled></textarea><button id="send" class="button-primary" type="submit" disabled><span>Enviar</span><span aria-hidden="true">↗</span></button></div><div class="composer-footer"><span>Enter para enviar <span aria-hidden="true">·</span> Shift + Enter para nueva línea</span><span id="character-count">0 / 10000</span></div></form>
+          </section>
+          <aside class="right-rail" aria-label="Resultados y seguimiento">
+            <section id="tools-panel" class="card tools-card" aria-labelledby="tools-title"><div class="section-heading"><div><span class="eyebrow">TRAZABILIDAD</span><h2 id="tools-title">Actividad de herramientas</h2></div><span id="tools-badge" class="count-badge">0</span></div><p class="panel-description">Las operaciones que respaldan cada respuesta.</p><div id="tools" class="tools-list"><p class="empty-state">Las herramientas utilizadas aparecerán aquí después de tu primera consulta.</p></div></section>
+            <section id="reviews-panel" class="card reviews-card" aria-labelledby="reviews-title"><div class="section-heading"><div><span class="eyebrow">CONTROL HUMANO</span><h2 id="reviews-title">Revisiones pendientes</h2></div><span id="reviews-badge" class="count-badge">0</span></div><div id="reviews" class="reviews-list"><p class="empty-state">Las solicitudes de revisión se mostrarán aquí.</p></div><div class="review-policy"><span aria-hidden="true">◇</span> Las aprobaciones se gestionan por un canal humano autorizado.</div></section>
+          </aside>
+        </div>
+        <footer class="workspace-footer"><span>Demostración · Sin escrituras contractuales desde el chat</span><span>Datos de prueba del Reto 2</span></footer>
+      </div>
+    </main>
+  </div>
+  <noscript>Activa JavaScript para utilizar el agente contractual.</noscript>
+</body>
+</html>

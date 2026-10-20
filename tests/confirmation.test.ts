@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { createConfirmation, decideConfirmation, evaluateRegistration, getConfirmation, inspectReview,
   persistConfirmedRegistration, persistRegistration, type StorageResult } from "../src/storage/persistence.ts";
-import { hashBytes } from "../src/storage/audit.ts";
+import { hashBytes, optionalBytes } from "../src/storage/audit.ts";
 import { readCsv } from "../src/storage/csv.ts";
 import type { Confirmation } from "../src/domain/confirmation.ts";
 import { integrationTests } from "./helpers/integration.ts";
@@ -438,7 +438,7 @@ test("Fixtures, maestro operativo y filas originales se conservan durante prueba
     return result;
   }
   const before = { fixtures: await hashes(join(root, "fixtures")), out: await hashes(join(root, "out")),
-    prd: await readFile(join(root, "PRD.md")), agents: await readFile(join(root, "AGENTS.md")) };
+    prd: await readFile(join(root, "PRD.md")), agents: await optionalBytes(join(root, "AGENTS.md")) };
   const { directory, request } = await approvedRequest();
   const original = await readCsv(output(directory, "sharepoint/maestro-contratos.csv"));
   unwrap(await persistConfirmedRegistration(directory, command(request), reviewer, clock));
@@ -448,5 +448,5 @@ test("Fixtures, maestro operativo y filas originales se conservan durante prueba
   expect(await hashes(join(root, "fixtures"))).toEqual(before.fixtures);
   expect(await hashes(join(root, "out"))).toEqual(before.out);
   expect(await readFile(join(root, "PRD.md"))).toEqual(before.prd);
-  expect(await readFile(join(root, "AGENTS.md"))).toEqual(before.agents);
+  expect(await optionalBytes(join(root, "AGENTS.md"))).toEqual(before.agents);
 });

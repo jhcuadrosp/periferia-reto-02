@@ -1,5 +1,234 @@
 # Periferia — Reto 02
 
+## Cómo ejecutar el proyecto localmente
+
+La demostración se ejecuta **en el computador del evaluador**. Es necesario
+descargar el código fuente e iniciar la aplicación localmente; por ahora no
+se proporciona una URL pública de la aplicación. Los ejemplos siguientes usan
+PowerShell en Windows y se ejecutan desde la raíz del proyecto.
+
+### Paso 1. Requisitos previos
+
+- Git instalado: comprobar con `git --version`.
+- Bun **1.4.3**, versión verificada para este proyecto: comprobar con
+  `bun --version`. Ver la [instalación oficial de Bun](https://bun.sh/docs/installation).
+- Conexión a Internet para instalar dependencias y utilizar Gemini.
+- Una API Key propia y válida de Google Gemini para el modo conversacional real.
+- Un navegador web moderno.
+
+No se necesitan IntelliJ IDEA, Node.js, n8n, una base de datos ni acceso real a
+SharePoint o al correo corporativo. Para evaluar sin Gemini ni API Key, ver
+[Modo de evaluación sin Gemini](#modo-de-evaluación-sin-gemini).
+
+### Paso 2. Clonar el repositorio
+
+```powershell
+git clone https://github.com/jhcuadrosp/periferia-reto-02.git
+cd periferia-reto-02
+```
+
+Esta URL corresponde al remoto Git configurado en el proyecto. Si el repositorio
+es privado, el evaluador necesitará acceso concedido por su propietario.
+
+### Paso 3. Instalar dependencias
+
+```powershell
+bun install
+```
+
+Instala las dependencias declaradas en `package.json`, incluidas las de desarrollo
+necesarias para las pruebas. Se incluye `bun.lock` para reproducir sus versiones.
+Para una instalación estrictamente ajustada al lockfile también se puede usar
+`bun install --frozen-lockfile`.
+
+### Paso 4. Configurar variables de entorno
+
+Crear `.env` desde la plantilla **solo si todavía no existe**:
+
+```powershell
+if (!(Test-Path -LiteralPath .env)) {
+  Copy-Item -LiteralPath .env.example -Destination .env
+}
+```
+
+Editar `.env` con un editor de texto. La configuración principal actual es:
+
+```dotenv
+AGENT_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash-lite
+AGENT_MAX_ITERATIONS=10
+AGENT_MAX_TOOL_CALLS=20
+AGENT_MAX_TOKENS=60000
+AGENT_PROVIDER_TIMEOUT_MS=15000
+PORT=3000
+HOST=127.0.0.1
+PUBLIC_ORIGIN=
+```
+
+Completar `GEMINI_API_KEY` únicamente en el archivo `.env` local:
+
+1. Abrir [Google AI Studio](https://aistudio.google.com/) con la cuenta propia.
+2. Ir a **API Keys / Claves de API**, seleccionar o crear un proyecto y generar
+   una clave habilitada para Gemini. Ver la [guía oficial de claves](https://ai.google.dev/gemini-api/docs/api-key).
+3. Copiar esa clave al valor de `GEMINI_API_KEY` en `.env` y guardar el archivo.
+
+Cada evaluador utiliza su propia credencial. La disponibilidad del modelo, cuotas
+y posibles costos dependen de su proyecto de Google; no se garantiza consumo
+gratuito ni acceso a un modelo para todas las cuentas. Consultar los
+[límites de Gemini](https://ai.google.dev/gemini-api/docs/rate-limits).
+`GEMINI_MODEL` corresponde a la configuración existente, y puede cambiarse por
+un modelo Gemini disponible para la clave del evaluador.
+
+Bun carga `.env` al iniciar. `.env.example` es una plantilla y no se carga como
+configuración automáticamente. Las variables ya definidas en la terminal pueden
+prevalecer sobre `.env`; después de cambiar valores hay que reiniciar el servidor.
+La clave permanece en el backend: nunca debe copiarse al README, a la plantilla
+ni a archivos versionados.
+
+### Paso 5. Iniciar la aplicación
+
+```powershell
+bun run server
+```
+
+Mantener abierta la terminal y visitar **http://127.0.0.1:3000/** en el navegador.
+Con los valores anteriores esa es la dirección configurada; si se cambia `PORT`,
+utilizar la dirección impresa por el servidor. Bun entrega tanto la interfaz web
+como los endpoints de la API, sin un segundo comando para el frontend.
+Para detenerlo, pulsar Ctrl+C en su terminal.
+
+### Paso 6. Probar el agente
+
+Enviar desde el chat, por ejemplo:
+
+- ¿Qué correos tenemos pendientes de procesar?
+- Extrae la información contractual de Industrias Delta.
+- Revisa msg-006 e indica qué información falta para registrarlo.
+- ¿Qué contratos están próximos a vencer al 3 de septiembre de 2026?
+
+En modo `gemini`, Google Gemini interpreta las consultas y el backend ejecuta
+las herramientas deterministas. La interfaz muestra sus llamadas, resultados
+y revisiones pendientes. Las sugerencias colocan texto en el campo; es necesario
+pulsar **Enviar** o Enter para ejecutar la consulta.
+
+**El registro contractual está deshabilitado desde el canal HTTP.** Las revisiones
+humanas pueden visualizarse, pero no aprobarse desde el chat; escribir «confirmo»
+no concede autorización. Para evaluar registros, actualizaciones e idempotencia
+de forma determinista, ejecutar la demo del siguiente paso.
+
+### Paso 7. Ejecutar las pruebas
+
+En otra terminal, dentro de la carpeta del proyecto:
+
+```powershell
+bun run typecheck
+bun test
+bun run demo
+```
+
+| Comando | Qué evalúa |
+|---|---|
+| `bun run typecheck` | Comprueba los tipos de TypeScript sin generar archivos compilados. |
+| `bun test` | Ejecuta las pruebas automáticas del dominio, herramientas, persistencia, agente, API y frontend con proveedores simulados. |
+| `bun run demo` | Ejecuta los seis casos contractuales, registros y actualizaciones simulados, revisión, idempotencia y alertas, con fecha fija. |
+
+**Las pruebas y `bun run demo` no consumen Gemini ni requieren API Key.**
+La demo utiliza un directorio temporal aislado y conserva los fixtures originales
+y el `out/` operativo. La aplicación conversacional y la demo determinista son
+dos formas complementarias de evaluar el proyecto.
+
+## Modo de evaluación sin Gemini
+
+Después de `bun install`, no es necesario crear `.env`. En PowerShell:
+
+```powershell
+$env:AGENT_PROVIDER = "mock"
+bun run server
+```
+
+También se puede definir `AGENT_PROVIDER=mock` en un `.env` propio y ejecutar
+`bun run server`. No se requiere clave; abrir la misma dirección local.
+La interfaz identifica explícitamente al proveedor simulado.
+
+El mock **no es un modelo de inteligencia artificial ni genera respuestas con
+Gemini**. Ejecuta un guion fijo por conversación, independientemente del texto:
+primera consulta, buzón; segunda, revisión de msg-006; tercera, intento de registro
+bloqueado. Las siguientes indican que terminó la simulación. **Nueva conversación**
+reinicia el guion, sujeto a los límites de creación de sesiones.
+
+Para volver a Gemini en esa terminal, detener el servidor y ejecutar
+`$env:AGENT_PROVIDER = "gemini"`, teniendo la clave configurada en `.env`, y después
+`bun run server`. Para la consola automática de demostración también existe
+`bun run agente:mock`; no abre el frontend.
+
+## Seguridad y archivos excluidos
+
+Se incluyen los 14 archivos originales de `fixtures/reto-02/` necesarios para
+evaluar los seis mensajes, el catálogo y el maestro. La aplicación trabaja con
+copias temporales y no requiere un `out/` previo ni el archivo local `AGENTS.md`.
+
+`.gitignore` excluye `.env` y variantes, secretos y certificados, `node_modules/`,
+`out/`, compilaciones, cachés, logs, temporales y configuración local del IDE.
+`.env.example`, `bun.lock`, código fuente, pruebas y fixtures deben versionarse.
+No hay credenciales compartidas para la evaluación. Para revisar las exclusiones:
+
+```powershell
+git check-ignore -v -- .env out/log.jsonl node_modules/ .idea/workspace.xml
+git ls-files -- fixtures/reto-02 .env.example
+```
+
+## Problemas frecuentes
+
+| Problema | Solución |
+|---|---|
+| Bun no está instalado o no se reconoce | Seguir la instalación oficial, abrir una terminal nueva y ejecutar `bun --version`. Usar la versión verificada 1.4.3. |
+| Faltan dependencias o aparecen módulos no encontrados | Ejecutar `bun install` desde la carpeta que contiene `package.json`. |
+| No se configuró `GEMINI_API_KEY` | Crear `.env` desde la plantilla, completar la clave localmente y reiniciar. El arranque muestra un error controlado si falta configuración. |
+| La clave es inválida o no tiene permisos | Revisar en AI Studio la clave y el proyecto habilitado para Gemini; actualizar `.env` y reiniciar. No imprimir ni publicar el valor para diagnosticarlo. |
+| El modelo no está disponible | Comprobar `GEMINI_MODEL` y la disponibilidad para la cuenta. Con la configuración propia puede ejecutarse `bun run agente:real --verificar-modelo`: consulta los metadatos del modelo y no realiza inferencia. |
+| Se alcanzó una cuota o el límite de solicitudes | Revisar cuotas del proyecto en AI Studio y esperar el restablecimiento correspondiente. Si es un límite HTTP local, esperar el plazo indicado; si es el presupuesto de tokens de la sesión, iniciar otra conversación. No hay reenvíos automáticos. |
+| El puerto está ocupado | Detener el servidor anterior con Ctrl+C o ejecutar `$env:PORT = "3001"` y después `bun run server`; abrir `http://127.0.0.1:3001/`. |
+| El frontend no llega al backend | Confirmar que el servidor sigue abierto, usar su URL y no abrir `web/index.html` directamente. No mezclar `localhost` con `127.0.0.1`. Probar en otra terminal `Invoke-RestMethod http://127.0.0.1:3000/api/health` ajustando el puerto. |
+| Se mantiene otro proveedor/puerto tras editar `.env` | Revisar las variables de la terminal: pueden prevalecer sobre `.env`. Detener y reiniciar en una terminal nueva o actualizar la variable correspondiente. |
+| La sesión caducó o se reinició el servidor | Pulsar **Nueva conversación**. Las sesiones permanecen en memoria del proceso y caducan. |
+
+Para una evaluación exclusivamente local, mantener `HOST=127.0.0.1` y
+`PUBLIC_ORIGIN=` vacío. No es necesario desactivar CORS, CSRF ni la protección
+de cookies para que funcione.
+
+## Demostración técnica
+
+El evaluador puede comprobar la interacción conversacional con Gemini, las cinco
+herramientas contractuales, extracción con confianza y evidencia, clasificación
+y validación, revisiones humanas visibles, y trazabilidad/auditoría. Los paneles
+solo muestran llamadas que realmente ocurrieron; no se garantiza que una consulta
+particular haga invocar todas las herramientas. El registro propuesto por el
+modelo se bloquea en HTTP; la demo prueba su ejecución determinista autorizada.
+
+El terminal informa la ruta temporal de los reportes y la auditoría de cada
+ejecución. `bun run demo` permite revisar los resultados contractuales sin LLM.
+La documentación técnica detallada de las fases continúa a continuación.
+
+**Esta entrega se evalúa localmente y todavía no dispone de una URL pública.**
+Esta modalidad no sustituye el requisito de despliegue del PRD; ese entregable
+permanece pendiente. No se ha desplegado ni publicado una aplicación en esta etapa.
+
+La preparación se comprobó en una copia aislada de los archivos destinados al
+repositorio, sin `.env`, `AGENTS.md`, `node_modules/` ni `out/` iniciales.
+Después de `bun install --frozen-lockfile`, el chequeo de tipos pasó en 63
+archivos, las 281 pruebas aprobaron y la demo completó 31/31 aserciones.
+También se inició `bun run server` con mock y se verificaron la interfaz HTTP 200,
+health y una consulta al buzón sin clave. No se consumió Gemini.
+
+Para quien prepara la entrega: antes de compartir el enlace de GitHub, revisar
+`git status --short` e incluir en el commit los archivos fuente nuevos, pruebas,
+documentación y lockfile. Las modificaciones locales todavía no publicadas no
+llegan al evaluador mediante `git clone`. Las exclusiones de `.gitignore` se
+mantienen; no agregar `.env`, `AGENTS.md`, dependencias ni salidas operativas.
+
+---
+
 Proyecto TypeScript con Bun para construir progresivamente una solución de
 registro de contratos. Incluye persistencia local y confirmación humana controlada
 (Fase 5.2), herramientas deterministas y alertas (Fase 6.1), y demo integral
@@ -7,7 +236,10 @@ sin LLM (Fase 6.2), motor conversacional con proveedor simulado (Fase 7.1)
 y adaptador Google Gemini con consola provisional (Fase 7.2).
 Incluye estabilización del transporte por referencias y métricas (Fase 7.3).
 El control adicional de revisiones distingue pasos omitidos de tareas terminadas.
-Todavía no incluye frontend ni despliegue.
+La Fase 8.1A añade una [API HTTP con Bun](#fase-81a-api-http-con-bun), sesiones
+protegidas y pruebas HTTP sin consumir el modelo.
+La [Fase 8.1B](#fase-81b-frontend-web) incorpora el chat web con HTML, CSS y
+TypeScript, servido por el mismo Bun. Todavía no se ha desplegado públicamente.
 
 ## Requisitos e instalación
 
@@ -46,6 +278,7 @@ bun run herramientas
 bun run demo
 bun run agente:mock
 bun run agente:real
+bun run server
 ```
 
 `bun run test` también ejecuta las pruebas. El chequeo de tipos usa `bun check`
@@ -61,8 +294,9 @@ con reloj fijo y aserciones. No utiliza claves ni modifica el out/ operativo.
 | `bun run demo` | Los seis casos, reglas, persistencia, idempotencia y alertas mediante herramientas directas. | No / no. | Ejecución automática; no pasa por el motor conversacional. |
 | `bun run agente:mock` | El ciclo del agente, herramientas y bloqueo de revisión con un proveedor simulado. | No / no. | Conversación automática de guion fijo; no recibe preguntas libres. |
 | `bun run agente:real` | Interpretación de lenguaje natural, function calling y continuidad con Google Gemini. | Sí / sí. | Consola interactiva; escribir consultas y terminar con `salir` o `exit`. |
+| `bun run server` | Chat web y API HTTP con sesiones protegidas. | Según `AGENT_PROVIDER`: `mock` o `gemini`. | Abrir `http://127.0.0.1:3000`. Registro contractual deshabilitado. |
 
-Los tres comandos utilizan proyectos temporales propios con copias de fixtures,
+Estos comandos utilizan proyectos temporales propios con copias de fixtures,
 sin modificar los originales ni out/ operativo. Que demo o mock funcionen no
 demuestra conexión con Gemini: esa comprobación requiere agente:real.
 Los nombres de los comandos se escriben con **bun**, no con bum.
@@ -1476,3 +1710,361 @@ aserciones y agente:mock correcto. Todas se ejecutaron sin inferencias reales.
 La comparación SHA-256 confirmó sin cambios PRD.md, AGENTS.md, demo.ts, fixtures,
 out/ operativo, .env.example y el archivo .env local. La repetición con Gemini
 real queda a cargo del protocolo manual anterior; no se instalaron dependencias.
+
+## Fase 8.1A: API HTTP con Bun
+
+Esta etapa expone el agente existente mediante JSON. No incluye frontend,
+despliegue ni un canal HTTP para aprobar o registrar contratos.
+
+### Archivos y arquitectura
+
+```text
+src/server.ts                Arranque Bun.serve, configuración, proveedor y almacenamiento temporal.
+src/http/api.ts              Rutas, sesiones HTTP, CSRF, validaciones, límites y auditoría.
+src/http/presentation.ts     Proyección pública de historial, herramientas y revisiones.
+src/agent/runner.ts          Ciclo conversacional existente; no se duplica en HTTP.
+tests/http.test.ts           Pruebas con servidores HTTP reales en puertos efímeros.
+```
+
+El recorrido es HTTP → runner → proveedor/herramientas → dominio/almacenamiento.
+Las reglas contractuales y las cinco herramientas conservan su implementación.
+Los pequeños ajustes de `session.ts`, `provider.ts`, `mock-provider.ts` y
+`gemini-provider.ts` permiten liberar sesiones caducadas y sus cachés privadas.
+El runner informa un código de error del proveedor para distinguir HTTP 504
+(timeout) de HTTP 502 (otros fallos). No se instalaron dependencias.
+
+### Inicio local y elección del proveedor
+
+Desde la raíz del proyecto, en PowerShell, para probar sin LLM:
+
+```powershell
+$env:AGENT_PROVIDER = "mock"
+bun run server
+```
+
+El servidor escucha por defecto en `http://127.0.0.1:3000`. Detener con Ctrl+C.
+Estas variables de PowerShell prevalecen sobre `.env`; no modifican ese archivo.
+El mock HTTP usa un guion por sesión: primera consulta, buzón; segunda, revisión
+de msg-006; tercera, intento de registro bloqueado. Las siguientes responden
+«La simulación ha terminado». No interpreta lenguaje natural.
+La consola `bun run agente:mock` mantiene su propio guion de demostración.
+
+Para preguntas libres con Gemini, tener la clave configurada en el `.env` local:
+
+```powershell
+$env:AGENT_PROVIDER = "gemini"
+bun run server
+```
+
+Solo enviar mensajes a una sesión consume inferencias. Arrancar el servidor o
+consultar health no llama al modelo. Si falta la clave o la configuración es
+inválida, el proceso falla de forma controlada antes de escuchar; no imprime la
+clave. Las pruebas automatizadas inyectan proveedores simulados y nunca Gemini real.
+
+| Variable | Uso |
+|---|---|
+| `AGENT_PROVIDER` | `mock` o `gemini`. Si no está definida, la API usa `mock`; `.env.example` propone `gemini`. |
+| `GEMINI_API_KEY` | Solo backend y solo requerida con Gemini. |
+| `GEMINI_MODEL` | Modelo existente, configurable; no se cambia en esta fase. |
+| `AGENT_MAX_ITERATIONS`, `AGENT_MAX_TOOL_CALLS` | Límites existentes del runner, también aplicados a HTTP. |
+| `AGENT_MAX_TOKENS` | Presupuesto acumulado por sesión; ejemplo: `60000`. |
+| `AGENT_PROVIDER_TIMEOUT_MS` | Timeout por inferencia; ejemplo: `15000`. |
+| `PORT` | Puerto local, por defecto `3000`; `0` permite puerto efímero para pruebas. |
+| `HOST` | Dirección de escucha, por defecto `127.0.0.1`. |
+| `PUBLIC_ORIGIN` | Vacío en local: se calcula el origen exacto. Para HTTPS/proxy: origen público, sin rutas, parámetros ni credenciales. |
+
+No mezclar `localhost` y `127.0.0.1` en una sesión: son orígenes distintos.
+Escuchar fuera de localhost requiere `PUBLIC_ORIGIN` explícito. No se confía
+en `X-Forwarded-Host`, `X-Forwarded-Proto` ni `X-Forwarded-For` del cliente.
+
+### Endpoints
+
+Todas las respuestas de aplicación usan JSON y `Cache-Control: no-store`.
+
+| Método | Ruta | Entrada / salida |
+|---|---|---|
+| GET | `/api/health` | Estado, proveedor, modelo y `registrationEnabled: false`. |
+| POST | `/api/sessions` | `{}` → `sessionId`, `csrfToken`, `expiresAt` y cookie privada. |
+| POST | `/api/sessions/:id/messages` | `{ "message": "..." }` → respuesta, estado, herramientas, eventos, revisiones, errores y consumo. |
+| GET | `/api/sessions/:id/messages` | Historial público de usuario/asistente. |
+| GET | `/api/sessions/:id/events` | Llamadas a herramientas, argumentos públicos y resultados estructurados/resumidos. |
+| GET | `/api/sessions/:id/reviews` | Campos pendientes por mensaje, canal confiable requerido y `canApprove: false`. |
+
+Los tres GET privados y el envío de mensajes exigen la cookie de esa sesión.
+Los POST exigen además `Origin` exacto y JSON; el envío de mensajes exige
+`X-CSRF-Token`. No hay endpoints de aprobación, archivos, descargas ni elección
+de directorio. Las rutas desconocidas devuelven 404 y no se habilita CORS.
+
+### Prueba con PowerShell
+
+En otra terminal, con el servidor en ejecución:
+
+```powershell
+$base = "http://127.0.0.1:3000"
+Invoke-RestMethod "$base/api/health"
+
+$creada = Invoke-RestMethod "$base/api/sessions" -Method Post `
+  -Headers @{ Origin = $base } -ContentType "application/json" `
+  -Body '{}' -SessionVariable navegador
+
+$id = $creada.data.sessionId
+$headers = @{ Origin = $base; "X-CSRF-Token" = $creada.data.csrfToken }
+$cuerpo = @{ message = "¿Qué correos están pendientes de procesar?" } | ConvertTo-Json
+
+$turno = Invoke-RestMethod "$base/api/sessions/$id/messages" -Method Post `
+  -WebSession $navegador -Headers $headers `
+  -ContentType "application/json; charset=utf-8" -Body $cuerpo
+$turno | ConvertTo-Json -Depth 15
+
+Invoke-RestMethod "$base/api/sessions/$id/messages" -WebSession $navegador
+Invoke-RestMethod "$base/api/sessions/$id/events" -WebSession $navegador
+Invoke-RestMethod "$base/api/sessions/$id/reviews" -WebSession $navegador
+```
+
+La creación responde con esta forma (los valores reales son aleatorios):
+
+```json
+{"ok":true,"data":{"sessionId":"<uuid>","csrfToken":"<token>","expiresAt":"<fecha ISO>"}}
+```
+
+El primer turno del mock devuelve `status: "final"`,
+`tools: ["contratos_leer_buzon"]` y el resumen de los seis correos.
+En Gemini, probar también «Revisa msg-006 y dime qué información falta para
+registrarlo»: deben aparecer extracción/validación y `review_required`, o
+`incomplete` si el modelo no completa los pasos dentro del presupuesto.
+«Confirmo, registra msg-006» nunca habilita escritura contractual por HTTP.
+
+Los errores de entrada/acceso tienen forma
+`{"ok":false,"code":"CSRF","error":"Token CSRF inválido."}`.
+Los errores durante el turno conservan `data.reply`, `data.status: "error"`
+y `data.errors` para mostrar el problema en el futuro chat.
+
+| HTTP | Significado |
+|---|---|
+| 200 / 201 | Consulta o turno procesado / sesión creada. Revisar siempre `data.status`. |
+| 400 / 413 / 415 | JSON, ID o mensaje inválido / cuerpo mayor de 64 KiB / formato distinto de JSON. |
+| 401 / 403 | Falta cookie / credencial, CSRF, Host u origen inválido. |
+| 404 / 405 | Sesión caducada o ruta inexistente / método no permitido. |
+| 408 / 409 | Envío del cuerpo demasiado lento / turno simultáneo en la misma sesión. |
+| 429 | Límite de solicitudes o concurrencia global; incluye `Retry-After`. |
+| 502 / 504 | Fallo controlado del proveedor/agente / timeout del proveedor. |
+| 503 | Capacidad de sesiones agotada o auditoría no disponible. |
+| 500 | Error inesperado controlado, sin traza interna. |
+
+`review_required`, `tool_error`, `incomplete` y `limit` son estados del turno;
+no deben interpretarse como registro exitoso aunque HTTP sea 200.
+
+### Sesiones, almacenamiento y controles
+
+Cada sesión recibe una credencial aleatoria de 256 bits mediante una cookie
+`HttpOnly; SameSite=Strict`, restringida a su ruta y sin `Domain`.
+`PUBLIC_ORIGIN=https://...` añade `Secure`; HTTP local no utiliza ese atributo.
+El backend conserva hashes de la credencial y del token CSRF independiente;
+compara sus valores en tiempo constante. El ID visible no permite acceder a
+otra conversación. Esto protege la sesión anónima; no autentica una identidad
+humana ni otorga permisos de aprobación.
+
+Los límites HTTP iniciales están centralizados en `src/http/api.ts`:
+50 sesiones, caducidad absoluta de 30 minutos, 2 turnos simultáneos globales,
+un turno por sesión, 60 solicitudes/minuto por IP, 5 creaciones/minuto por IP
+y 10 mensajes/minuto por sesión. Los límites del runner se conservan además.
+Las sesiones caducadas e inactivas se liberan en las peticiones y periódicamente;
+una operación en curso no se elimina mientras trabaja. Los contadores de IP
+también caducan y tienen un máximo de 1000 entradas.
+
+Solo se aceptan mensajes de hasta 10000 caracteres y cuerpos de hasta 65536 bytes,
+con un plazo de 5 segundos para recibirlos. El lector cuenta bytes incluso si
+no hay `Content-Length` y cancela el stream al exceder el límite. Se evita el
+rechazo nativo de Bun para que el 413 incluya JSON. El modo de desarrollo HTTP
+está desactivado para no mostrar páginas con trazas.
+
+El timeout de inactividad HTTP es 255 segundos para permitir los ciclos normales
+del agente. Bun cierra por defecto a los 10 segundos aun con el handler trabajando;
+se ajusta ese comportamiento según su [documentación del servidor](https://bun.sh/docs/runtime/http/server).
+El timeout del proveedor aborta la espera; las respuestas tardías no ejecutan
+herramientas. No se reintentan automáticamente inferencias ni operaciones.
+
+Cada arranque crea `%TEMP%/periferia-http-<aleatorio>/` y copia los fixtures allí.
+Las herramientas escriben sus logs/reportes dentro de ese temporal. El servidor
+no modifica el `out/` operativo ni elimina temporales de ejecuciones anteriores.
+La ruta solo se imprime en la consola local y nunca se devuelve por HTTP.
+Las conversaciones están aisladas; los reportes y el maestro simulado del
+temporal son compartidos por las sesiones de ese proceso, con registros
+contractuales deshabilitados. El archivo de alertas representa la última consulta.
+
+Se auditan creación de sesión, inicio/fin de turno, herramientas y métricas del
+proveedor. Sin auditoría de inicio, no se llama al modelo. Un fallo de auditoría
+posterior exige revisar el resultado antes de reintentar. El historial HTTP omite
+el system prompt, respuestas privadas del proveedor y mensajes internos de
+herramientas; estos últimos se muestran mediante eventos públicos. Los eventos
+incluyen evidencias y resultados de negocio, pero omiten tickets, hashes,
+autorizaciones y referencias privadas. Se redactan la clave configurada y las
+rutas internas en respuestas, sin convertir esto en un filtro general de datos
+personales. Los datos de prueba son los fixtures ficticios del reto.
+
+### Verificación y límites antes del despliegue
+
+Validación ejecutada en Bun 1.4.3:
+
+- `bun run typecheck`: sin errores en 58 archivos.
+- `bun test`: 270 aprobadas, 0 fallos; 24 nuevas pruebas HTTP con servidores locales reales.
+- `bun run demo`: 31/31 aserciones.
+- `bun run agente:mock`: ejecución correcta; revisión y bloqueo de confirmación por chat.
+
+Las pruebas cubren autorización por cookie, CSRF/origen/Host, separación de
+sesiones, caducidad, cuerpo grande o lento, errores, concurrencia, presupuestos,
+ausencia de escrituras contractuales y conservación de archivos protegidos.
+No se realizaron inferencias reales ni se modificó `.env`. `.gitignore` sigue
+excluyéndolo; `.env.example` incluye únicamente valores de ejemplo sin secretos.
+
+Las sesiones, credenciales y límites están en memoria de un solo proceso:
+reiniciar pierde la conversación. No hay autenticación de usuarios, control
+distribuido de cuota/costo ni autorización humana por HTTP. Antes de publicar
+hay que definir HTTPS y proxy confiable, límites globales de gasto, control de
+acceso, retención de temporales y tratamiento de datos reales. Con límites de
+iteraciones/timeout muy superiores a los actuales, revisar también los tiempos
+del cliente y del proxy. Esta fase no despliega ni constituye una configuración
+de producción distribuida.
+
+Siguiente etapa propuesta, sujeta a aprobación: Fase 8.1B, frontend mínimo que
+consuma esta API en el mismo origen, mantenga el token CSRF en memoria, use la
+cookie HttpOnly y muestre historial, herramientas, estados y revisiones sin
+incorporar un botón de aprobación contractual público.
+
+## Fase 8.1B: frontend web
+
+Chat de una sola página con HTML5, CSS3 y TypeScript. La paleta combina azul
+oscuro, blanco y gris, con tarjetas y estados discretos. La navegación lateral
+se oculta en pantallas estrechas y los paneles pasan a una columna en móvil.
+No utiliza React, Angular, Vue ni recursos externos de tipografía o diseño.
+
+### Archivos de esta etapa
+
+| Archivo | Función |
+|---|---|
+| `web/index.html` | Estructura semántica, navegación, chat, sugerencias y paneles. |
+| `web/styles.css` | Diseño, tamaños adaptables, foco visible y movimiento reducido. |
+| `web/api.ts` | Cliente HTTP con validación Zod; sesión y CSRF en memoria. |
+| `web/app.ts` | Estado de la conversación, teclado, procesamiento y errores. |
+| `web/render.ts` | Presentación segura de mensajes, herramientas y revisiones con `textContent`. |
+| `src/http/web.ts` | Compilación del frontend en memoria y lista cerrada de tres recursos públicos. |
+| `src/server.ts` | Carga los recursos web y amplía el guion del mock HTTP. Gemini no cambia. |
+| `src/http/api.ts` | Sirve esos recursos tras aplicar los controles existentes de Host, origen y solicitudes. |
+| `tests/web.test.ts` | Pruebas del cliente, DOM e integración con servidores HTTP reales. |
+| `docs/evidencias/fase-8-1b-chat.png` | Captura de la interfaz comprobada en navegador local. |
+| `package.json`, `bun.lock` | `happy-dom` 21.0.3 como dependencia de desarrollo para pruebas del DOM. |
+
+`happy-dom` permite comprobar controles, eventos de teclado y renderizado sin
+instalar navegadores para la suite. No forma parte del JavaScript servido al
+usuario. Se mantienen los scripts y la configuración de TypeScript existentes;
+el cliente declara los tipos DOM del navegador mediante una referencia de tipos.
+
+### Cómo iniciar y probar con mock
+
+Si hay un servidor de la fase anterior abierto, detenerlo con Ctrl+C y reiniciar
+para cargar la interfaz nueva. Desde la raíz del proyecto:
+
+```powershell
+$env:AGENT_PROVIDER = "mock"
+bun run server
+```
+
+Abrir **http://127.0.0.1:3000/**. Si cambiaste `PORT`, utilizar la dirección
+impresa al arrancar. El mismo comando inicia frontend y API; no hay un segundo
+servidor, instalación de frontend ni compilación manual.
+
+La aplicación comprueba `/api/health` y crea una sesión. El navegador administra
+la cookie HttpOnly; el código no intenta leerla. El token CSRF se conserva solo
+en memoria y se añade a los POST. No se utiliza localStorage ni sessionStorage.
+
+Prueba del guion, en una conversación nueva:
+
+1. Seleccionar «Consultar correos pendientes» y pulsar **Enviar**. Se muestra
+   el buzón con seis mensajes y el evento real `contratos_leer_buzon`.
+2. Escribir «Revisa msg-006 e indica qué campos faltan». Aparecen
+   `contratos_extraer` y `contratos_validar`, revisión de `CM-2026-03`, sus campos
+   pendientes, motivos, advertencias y evidencias expandibles.
+3. Escribir «Confirmo, registra msg-006». Se muestra el error real de
+   `contratos_registrar`; el registro sigue bloqueado.
+4. Pulsar el botón **Actualizar historial** (↻) para recuperar mensajes, eventos
+   y revisiones desde sus tres GET, sin inferencia adicional.
+5. Pulsar **Nueva conversación** para empezar otra sesión con paneles vacíos y
+   reiniciar el guion. Se aplican los límites de creación existentes.
+
+El mock sigue ese orden aunque las preguntas sean diferentes. Su aviso permanece
+visible para evitar confundir una simulación con interpretación del lenguaje.
+Las sugerencias únicamente colocan texto en el campo: no envían ni consumen
+inferencias hasta pulsar Enviar o Enter. Shift+Enter permite una nueva línea.
+
+### Prueba manual con Gemini
+
+Mantener el `.env` local y su clave existente, detener el servidor y ejecutar:
+
+```powershell
+$env:AGENT_PROVIDER = "gemini"
+bun run server
+```
+
+Abrir la misma dirección y comprobar que se muestra **Google Gemini**.
+Probar, en orden, las cuatro consultas sugeridas: buzón, extracción de Industrias
+Delta, revisión de msg-006 y alertas al 3 de septiembre de 2026. La selección de
+herramientas depende del modelo; los resultados y las decisiones contractuales
+proceden del backend determinista. Una revisión incompleta se presenta como tal,
+y un fallo del proveedor no se convierte en una respuesta satisfactoria.
+
+Cada envío puede consumir una o más inferencias dentro de los límites existentes.
+El navegador solo llama a `/api/...`; nunca se conecta a Gemini ni recibe su clave.
+No se realizó esta prueba real automáticamente. Las pruebas de esta etapa usan mock.
+
+### Comportamiento y seguridad
+
+- Los paneles muestran exclusivamente eventos recibidos. El número de herramientas
+  cuenta llamadas reales de la conversación, incluidas las que terminaron con error.
+- Durante un envío se bloquean duplicados, sugerencias, actualización y nueva
+  sesión. La API actual no transmite eventos en streaming: los detalles aparecen
+  cuando finaliza el turno y mientras tanto se muestra un indicador de procesamiento.
+- Las revisiones usan el ID contractual, motivos y advertencias de la última
+  validación pública del mensaje, si están disponibles. No se deducen reglas ni
+  se inventan datos faltantes en el navegador.
+- Las etiquetas distinguen validado, pendiente, rechazado y aplicado solo cuando
+  el resultado del backend contiene ese estado. Una validación no equivale a un
+  registro. El canal público sigue sin poder producir registros ni aprobaciones.
+- Los detalles expandibles muestran argumentos y resultados públicos; nunca
+  tickets, hashes privados ni autorizaciones. No hay botones de aprobar/rechazar.
+- Mensajes, nombres, advertencias y JSON se insertan con `textContent`, sin HTML
+  dinámico, ejecución de código ni interpretación de Markdown procedente del modelo.
+- Los recursos usan una política CSP que restringe scripts, estilos y conexiones
+  al propio origen. Se sirven solo `/`, `/assets/app.js` y `/assets/styles.css`;
+  no se publican fuentes `.ts`, sourcemaps, archivos de configuración ni carpetas.
+- Bun compila el TypeScript una vez al iniciar cada proceso, sin `outdir` y con
+  `env: "disable"`; no genera artefactos en `out/` ni inserta variables de entorno.
+  Tras editar los recursos, reiniciar el servidor. La estrategia usa el
+  [compilador nativo de Bun](https://bun.sh/docs/bundler).
+- Al caducar una sesión se conserva la conversación visible y se pide iniciar
+  una nueva. Recargar la página crea otra sesión: no se persisten credenciales ni
+  conversaciones en el navegador. Los enlaces internos mantienen la sesión actual.
+- Si una respuesta no llega, no se reenvía automáticamente el POST. El aviso
+  recomienda actualizar el historial antes de repetir para comprobar lo ocurrido.
+
+### Validación y evidencia
+
+```powershell
+bun run typecheck
+bun test
+bun run demo
+```
+
+Resultados observados: **63 archivos sin errores de tipos**, **281 pruebas
+aprobadas y 0 fallos** (11 nuevas del frontend), y **31/31 aserciones de la demo**.
+Las pruebas cubren recursos, cookies/CSRF, conversaciones independientes, teclado,
+procesamiento, errores HTTP y de red, revisión, registro bloqueado y contenido HTML
+no confiable. Se comprobó además el flujo de buzón → revisión → bloqueo desde un
+navegador real, con MockProvider y sin consumo de Gemini.
+
+![Interfaz local del agente contractual](docs/evidencias/fase-8-1b-chat.png)
+
+Antes del despliegue siguen pendientes HTTPS y configuración del proxy, control
+de acceso, presupuesto global del proveedor, retención de datos y validación en
+dispositivos móviles reales. Las sesiones siguen en memoria y las salidas en
+temporales aislados. No se creó `SOLUCION.md`, no se desplegó la aplicación y
+no se avanzó a Fase 8.2.

@@ -8,7 +8,7 @@ import { leer_buzon, extraer, validar, registrar, alertas, type ToolContext } fr
 import { createConfirmation, decideConfirmation, evaluateRegistration, getConfirmation, registrationTicketSchema,
   type StorageResult } from "../src/storage/persistence.ts";
 import { extractionSchema } from "../src/domain/schemas.ts";
-import { hashBytes } from "../src/storage/audit.ts";
+import { hashBytes, optionalBytes } from "../src/storage/audit.ts";
 import { integrationTests } from "./helpers/integration.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -258,14 +258,14 @@ test("Fuentes originales, documentos de control y out operativo permanecen intac
     return result;
   }
   const before = { fixtures: await hashes(join(root, "fixtures")), out: await hashes(join(root, "out")),
-    prd: await readFile(join(root, "PRD.md")), agents: await readFile(join(root, "AGENTS.md")) };
+    prd: await readFile(join(root, "PRD.md")), agents: await optionalBytes(join(root, "AGENTS.md")) };
   const ctx = await project();
   await call(registrar, { mensaje_id: "msg-003", contrato: await ticket(ctx, "msg-003") }, ctx);
   await call(alertas, { hoy: "2026-09-03" }, ctx);
   expect(await hashes(join(root, "fixtures"))).toEqual(before.fixtures);
   expect(await hashes(join(root, "out"))).toEqual(before.out);
   expect(await readFile(join(root, "PRD.md"))).toEqual(before.prd);
-  expect(await readFile(join(root, "AGENTS.md"))).toEqual(before.agents);
+  expect(await optionalBytes(join(root, "AGENTS.md"))).toEqual(before.agents);
 });
 
 test("Informe previo se conserva cuando el historial es inválido o hay varios TXT ambiguos", async () => {

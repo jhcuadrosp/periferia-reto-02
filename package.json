@@ -14,10 +14,12 @@
     "herramientas": "bun run ./herramientas.ts",
     "demo": "bun run ./demo.ts",
     "agente:mock": "bun run ./agente-mock.ts",
-    "agente:real": "bun run ./agente-real.ts"
+    "agente:real": "bun run ./agente-real.ts",
+    "server": "bun run ./src/server.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "happy-dom": "^21.0.3"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"

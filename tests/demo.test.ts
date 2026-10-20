@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { execPath } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { optionalBytes } from "../src/storage/audit.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const created: string[] = [];
@@ -61,7 +62,8 @@ test("Una discrepancia real en copia de fixtures falla las aserciones y produce 
   created.push(source);
   await cp(join(root, "fixtures"), join(source, "fixtures"), { recursive: true });
   await cp(join(root, "PRD.md"), join(source, "PRD.md"));
-  await cp(join(root, "AGENTS.md"), join(source, "AGENTS.md"));
+  const agents = await optionalBytes(join(root, "AGENTS.md"));
+  if (agents !== null) await writeFile(join(source, "AGENTS.md"), agents);
   const path = join(source, "fixtures/reto-02/buzon/msg-003/otrosi.txt");
   const modified = (await readFile(path, "utf8")).replace("520,000.00", "521,000.00");
   await writeFile(path, modified);

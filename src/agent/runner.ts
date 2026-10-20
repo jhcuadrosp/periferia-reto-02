@@ -5,7 +5,7 @@ import { providerResponseSchema, providerUsageSchema, type Provider, type Messag
 import { executeTool, toolDefinitions } from "./tool-executor.ts";
 import { prepareHumanReview, receiveHumanDecision } from "./human-review.ts";
 import { recordToolEvent } from "../storage/persistence.ts";
-import { providerErrorMessage, providerErrorUsage } from "./provider-error.ts";
+import { providerError, providerErrorMessage, providerErrorUsage } from "./provider-error.ts";
 import { toolSummary } from "./tool-summary.ts";
 import { contextWindow } from "./context-window.ts";
 import { reviewTaskSchema, reviewTask, taskProgress, incompleteTaskReply, taskInstruction, type ReviewTask, type TaskProgress } from "./task.ts";
@@ -16,9 +16,9 @@ const limitsSchema = z.object({ maxIterations: z.number().int().min(1).max(25).d
   maxTokens: z.number().int().min(1).max(1_000_000).default(20_000),
   providerTimeoutMs: z.number().int().min(1).max(60_000).default(15_000) }).strict();
 type Limits = z.input<typeof limitsSchema>;
-type Turn = { ok: true; status: "final" | "review_required" | "limit" | "error" | "tool_error" | "incomplete"; reply: string;
+export type Turn = { ok: true; status: "final" | "review_required" | "limit" | "error" | "tool_error" | "incomplete"; reply: string;
   events: AgentEvent[]; tokens: number; turnTokens: number; tokenLimit: number; usageComplete: boolean;
-  toolErrors: { name: string; call_id: string; error: string }[]; task: TaskProgress | null };
+  toolErrors: { name: string; call_id: string; error: string }[]; task: TaskProgress | null; errorCode?: "PROVIDER_TIMEOUT" | "PROVIDER_ERROR" };
 
 export async function createAgent(options: { directory: string; provider: Provider; limits?: Limits; now?: () => string }) {
   const limits = limitsSchema.parse(options.limits ?? {});
@@ -47,6 +47,7 @@ export async function createAgent(options: { directory: string; provider: Provid
       const transport = options.provider.toolTransport;
       let toolCalls = 0;
       let correctionAttempts = 0;
+      let errorCode: Turn["errorCode"];
       const progress = () => taskProgress(task, session.events.slice(eventStart), correctionAttempts);
       function trackUsage(usage?: z.infer<typeof providerUsageSchema>) {
         if (usage?.input_tokens === undefined || usage.output_tokens === undefined) session.usageComplete = false;
@@ -85,7 +86,7 @@ export async function createAgent(options: { directory: string; provider: Provid
         const message: Message = { role: "assistant", content: reply, ...(providerResponseId ? { provider_response_id: providerResponseId } : {}) };
         if (fits([message])) session.messages.push(message);
         return { ok: true, status, reply, events, tokens: session.tokens, turnTokens: session.tokens - tokenStart,
-          tokenLimit: limits.maxTokens, toolErrors, task: currentTask, usageComplete: session.usageComplete };
+          tokenLimit: limits.maxTokens, toolErrors, task: currentTask, usageComplete: session.usageComplete, ...(errorCode ? { errorCode } : {}) };
       }
       if (!fits([{ role: "user", content: text }, { role: "assistant", content: "" }])) return finish("limit", "Se alcanzó el límite de contexto. Inicia una nueva sesión.");
       session.messages.push({ role: "user", content: text });
@@ -96,12 +97,16 @@ export async function createAgent(options: { directory: string; provider: Provid
         let raw: unknown;
         const currentTask = progress();
         try {
-          const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error("timeout")); }, limits.providerTimeoutMs); });
+          const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(providerError("timeout")); }, limits.providerTimeoutMs); });
           raw = await Promise.race([options.provider.send({ sessionId: session.id,
             messages: structuredClone([{ role: "system", content: prompt } as Message, ...(transport ? contextWindow(session.messages) : session.messages)]),
             tools: structuredClone(toolDefinitions(transport)), maxOutputTokens: limits.maxTokens - session.tokens, signal: controller.signal,
             ...(currentTask ? { task: structuredClone(currentTask) } : {}) }), timeout]);
-        } catch (error) { trackUsage(providerErrorUsage(error)); return finish("error", providerErrorMessage(error) ?? "El proveedor no respondió correctamente. Puedes volver a intentarlo."); }
+        } catch (error) {
+          errorCode = controller.signal.aborted || error && typeof error === "object" && "providerCode" in error && error.providerCode === "timeout"
+            ? "PROVIDER_TIMEOUT" : "PROVIDER_ERROR";
+          trackUsage(providerErrorUsage(error)); return finish("error", providerErrorMessage(error) ?? "El proveedor no respondió correctamente. Puedes volver a intentarlo.");
+        }
         finally { if (timer) clearTimeout(timer); }
         const parsed = providerResponseSchema.safeParse(raw);
         if (!parsed.success) { session.usageComplete = false; return finish("error", "El proveedor devolvió una respuesta vacía o con formato inesperado."); }
@@ -197,6 +202,11 @@ export async function createAgent(options: { directory: string; provider: Provid
   }
   return {
     createSession: () => store.create(),
+    disposeSession(id: string) {
+      const removed = store.remove(id);
+      if (removed) options.provider.releaseSession?.(id);
+      return removed;
+    },
     getSession(id: string) { try { return { ok: true as const, data: store.view(id) }; } catch { return { ok: false as const, error: "Sesión inexistente." }; } },
     send,
     prepareReview: (id: string, command: unknown) => controlled(id, (session) => prepareHumanReview(session, command, options.directory, now)),

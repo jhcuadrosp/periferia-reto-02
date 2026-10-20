@@ -36,6 +36,15 @@ node_modules/
 .env
 .env.*
 !.env.example
+/secrets/
+/.secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+client_secret*.json
+credentials.json
+application_default_credentials.json
 
 # Compilación y cobertura
 dist/
@@ -59,6 +68,11 @@ AGENTS.md
 *.tmp
 *.swp
 *.swo
+*.temp
+*.bak
+/logs/
+/.tmp/
+/.temp/
 
 # Metadatos locales de Windows
 Thumbs.db

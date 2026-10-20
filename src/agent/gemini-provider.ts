@@ -42,7 +42,7 @@ export function createGeminiProvider(options: Options): Provider {
   const client = options.generate ? undefined : new GoogleGenAI({ apiKey: options.apiKey, httpOptions: { retryOptions: { attempts: 1 }, timeout: options.timeoutMs ?? 15_000 } });
   const generate: Generate = options.generate ?? ((params) => client!.models.generateContent(params));
   const sessions = new Map<string, { saved: Map<string, SavedResponse>; requests: number }>();
-  return { toolTransport: "references", async send(request) {
+  return { toolTransport: "references", releaseSession: (id) => { sessions.delete(id); }, async send(request) {
     let state = sessions.get(request.sessionId);
     if (!state) { state = { saved: new Map(), requests: 0 }; sessions.set(request.sessionId, state); }
     const start = performance.now();

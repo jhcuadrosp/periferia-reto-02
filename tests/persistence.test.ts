@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { appendJsonLine, hashBytes, outputPath, recoverTransaction } from "../src/storage/audit.ts";
+import { appendJsonLine, hashBytes, optionalBytes, outputPath, recoverTransaction } from "../src/storage/audit.ts";
 import { readCsv } from "../src/storage/csv.ts";
 import { evaluateRegistration, initializeStorage, persistRegistration, resetStorage,
   type RegistrationTicket, type StorageResult } from "../src/storage/persistence.ts";
@@ -435,10 +435,10 @@ test("La persistencia aislada no cambia fixtures reales ni los de entrada durant
   const originalBefore = await hashes(join(root, "fixtures"));
   const copiedBefore = await hashes(join(directory, "fixtures"));
   const prd = await readFile(join(root, "PRD.md"));
-  const agents = await readFile(join(root, "AGENTS.md"));
+  const agents = await optionalBytes(join(root, "AGENTS.md"));
   for (const id of ["msg-001", "msg-002", "msg-003", "msg-004", "msg-005", "msg-006"]) await processMessage(directory, id);
   expect(await hashes(join(root, "fixtures"))).toEqual(originalBefore);
   expect(await hashes(join(directory, "fixtures"))).toEqual(copiedBefore);
   expect(await readFile(join(root, "PRD.md"))).toEqual(prd);
-  expect(await readFile(join(root, "AGENTS.md"))).toEqual(agents);
+  expect(await optionalBytes(join(root, "AGENTS.md"))).toEqual(agents);
 });

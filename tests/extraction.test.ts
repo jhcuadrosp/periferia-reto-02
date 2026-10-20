@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
+import { optionalBytes } from "../src/storage/audit.ts";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractContract } from "../src/domain/extraction.ts";
@@ -304,7 +305,10 @@ test("Extracción repetida: salida determinista y originales intactos", async ()
   }
   await collect(join(root, "fixtures"));
   async function hashes() {
-    return Promise.all(paths.map(async (path) => createHash("sha256").update(await readFile(path)).digest("hex")));
+    return Promise.all(paths.map(async (path) => {
+      const bytes = path === join(root, "AGENTS.md") ? await optionalBytes(path) : await readFile(path);
+      return bytes === null ? null : createHash("sha256").update(bytes).digest("hex");
+    }));
   }
   const before = await hashes();
   for (const path of paths.filter((path) => path.endsWith(".txt"))) {

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
+import { optionalBytes } from "../src/storage/audit.ts";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractContract } from "../src/domain/extraction.ts";
@@ -393,7 +394,10 @@ test("La evaluación de los seis casos conserva fixtures, maestro y documentos d
     }
   }
   await collect(join(root, "fixtures"));
-  const hashes = () => Promise.all(paths.map(async (path) => createHash("sha256").update(await readFile(path)).digest("hex")));
+  const hashes = () => Promise.all(paths.map(async (path) => {
+    const bytes = path === join(root, "AGENTS.md") ? await optionalBytes(path) : await readFile(path);
+    return bytes === null ? null : createHash("sha256").update(bytes).digest("hex");
+  }));
   const before = await hashes();
   const masterBefore = structuredClone(realMaster);
   const outBefore = await readdir(join(root, "out")).catch(() => null);
