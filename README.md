@@ -1,5 +1,8 @@
 # Periferia — Reto 02
 
+**Documentación técnica:** [SOLUCION.md](SOLUCION.md) — arquitectura, ciclo del
+agente, reglas, costos de Gemini, gobierno contractual y pendientes de entrega.
+
 ## Cómo ejecutar el proyecto localmente
 
 La demostración se ejecuta **en el computador del evaluador**. Es necesario
@@ -2066,5 +2069,5 @@ navegador real, con MockProvider y sin consumo de Gemini.
 Antes del despliegue siguen pendientes HTTPS y configuración del proxy, control
 de acceso, presupuesto global del proveedor, retención de datos y validación en
 dispositivos móviles reales. Las sesiones siguen en memoria y las salidas en
-temporales aislados. No se creó `SOLUCION.md`, no se desplegó la aplicación y
-no se avanzó a Fase 8.2.
+temporales aislados. En Fase 8.1B todavía no se había creado `SOLUCION.md`;
+la Fase 8.3 incorpora ese documento. La aplicación sigue sin despliegue público.
